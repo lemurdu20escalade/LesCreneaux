@@ -1,0 +1,59 @@
+# données runtime
+/data/
+/app/config.php
+
+# dépendances (si Composer ajouté un jour)
+/vendor/
+
+# bases SQLite (tous schémas confondus)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-journal
+
+# dumps, logs, backups
+*.sql
+*.sql.gz
+*.log
+*.bak
+!/app/migrations/*.sql
+
+# secrets / certificats
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# tests / coverage
+coverage/
+.phpunit.result.cache
+
+# marqueur local review (/rw)
+/.git/RW_PASSED
+
+# notes perso des mainteneur·ices (checklists, to-do), pas pour le repo public
+/topublic*
+/TODO.local*
+/notes.local*
+
+# screenshots de tests UI (audit /design, playwright)
+/.design/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.code-workspace

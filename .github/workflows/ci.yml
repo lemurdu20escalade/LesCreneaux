@@ -1,0 +1,144 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: PHP lint + migrations (PHP ${{ matrix.php }})
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+
+      - name: php -l sur tous les fichiers PHP
+        run: |
+          find app www scripts -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Migration SQL applique proprement
+        run: |
+          sqlite3 /tmp/ci.sqlite < app/migrations/001_init.sql
+          echo "Schéma :"
+          sqlite3 /tmp/ci.sqlite ".schema"
+          echo "Labels seedés :"
+          sqlite3 /tmp/ci.sqlite "SELECT nom FROM labels ORDER BY id;"
+
+      - name: Migration idempotente (rejouable sans erreur)
+        run: |
+          sqlite3 /tmp/ci.sqlite < app/migrations/001_init.sql
+          test "$(sqlite3 /tmp/ci.sqlite 'SELECT COUNT(*) FROM labels;')" = "5"
+
+  smoke:
+    runs-on: ubuntu-latest
+    name: Smoke test — boot + routes (PHP ${{ matrix.php }})
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: none
+          extensions: pdo_sqlite
+
+      - name: Prépare data dir + config.php minimal
+        run: |
+          mkdir -p data
+          # config.php est gitignoré (contient le secret en prod). Pour la
+          # CI, on génère une version minimale dérivée de l'example avec
+          # un secret jetable et les chemins adaptés.
+          cp app/config.php.example app/config.php
+          CSRF=$(php -r "echo bin2hex(random_bytes(32));")
+          sed -i "s|BASE_URL    = ''|BASE_URL    = 'http://localhost:8888'|" app/config.php
+          sed -i "s|DATA_DIR    = ''|DATA_DIR    = __DIR__ . '/../data'|"   app/config.php
+          sed -i "s|SECRET_CSRF = ''|SECRET_CSRF = '$CSRF'|"                app/config.php
+          php -l app/config.php
+
+      - name: Démarre le serveur PHP
+        run: |
+          php -S localhost:8888 -t www www/index.php > /tmp/server.log 2>&1 &
+          # Poll jusqu'à ce que le serveur réponde (max 10 s).
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null http://localhost:8888/licence; then
+              echo "serveur up après ${i}/20 tentatives"
+              break
+            fi
+            sleep 0.5
+          done
+
+      - name: GET / redirige vers /mois/YYYY-MM
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/)
+          test "$code" = "303" || (echo "attendu 303, reçu $code" && exit 1)
+
+      - name: GET /mois/2026-04 répond 200
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/mois/2026-04)
+          test "$code" = "200" || (echo "attendu 200, reçu $code" && exit 1)
+
+      - name: GET /reglages répond 200
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/reglages)
+          test "$code" = "200" || (echo "attendu 200, reçu $code" && exit 1)
+
+      - name: GET /licence répond 200
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/licence)
+          test "$code" = "200" || (echo "attendu 200, reçu $code" && exit 1)
+
+      - name: 404 rendu avec layout (pas texte brut)
+        run: |
+          body=$(curl -s http://localhost:8888/pas-existe)
+          echo "$body" | grep -q '<!doctype html>' || (echo "404 sans layout" && exit 1)
+
+      - name: Headers de sécurité présents sur /mois
+        run: |
+          h=$(curl -sI http://localhost:8888/mois/2026-04)
+          echo "$h" | grep -qi 'X-Frame-Options: DENY' || (echo "X-Frame-Options manquant" && exit 1)
+          echo "$h" | grep -qi 'X-Content-Type-Options: nosniff' || (echo "X-Content-Type-Options manquant" && exit 1)
+          echo "$h" | grep -qi 'Content-Security-Policy: default-src' || (echo "CSP manquant" && exit 1)
+
+      - name: Stop server
+        if: always()
+        run: |
+          pkill -f 'php -S' || true
+          echo "--- server log ---"
+          cat /tmp/server.log || true
+
+  phpstan:
+    runs-on: ubuntu-latest
+    name: PHPStan niveau 6
+    # Non-bloquant tant que phpstan-baseline.neon n'a pas été régénéré
+    # localement (cf. topublic / CONTRIBUTING). Une fois la baseline
+    # commitée, retirer ce flag pour que le job devienne bloquant.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer
+
+      - name: Install PHPStan
+        run: composer require --dev --no-interaction phpstan/phpstan:^2.0
+
+      - name: Analyse
+        run: vendor/bin/phpstan analyse --no-progress

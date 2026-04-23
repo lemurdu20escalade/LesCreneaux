@@ -1,0 +1,319 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Method Csrf\:\:verifierPost\(\) has parameter \$post with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Csrf.php
+
+		-
+			message: '#^Method FermetureRepo\:\:ajouter\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/FermetureRepo.php
+
+		-
+			message: '#^Method FermetureRepo\:\:lister\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/FermetureRepo.php
+
+		-
+			message: '#^Method FermetureRepo\:\:listerMois\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/FermetureRepo.php
+
+		-
+			message: '#^Method FermetureRepo\:\:supprimerPlusieurs\(\) has parameter \$ids with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/FermetureRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:idsAttachesModeles\(\) has parameter \$modeleIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:idsAttachesModeles\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:labelsParJour\(\) has parameter \$jourIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:labelsParJour\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:labelsParModele\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:labelsParModeles\(\) has parameter \$modeleIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:labelsParModeles\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:lister\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:syncJour\(\) has parameter \$labelIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:syncLabels\(\) has parameter \$labelIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method LabelRepo\:\:syncModele\(\) has parameter \$labelIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/LabelRepo.php
+
+		-
+			message: '#^Method ModeleRepo\:\:lister\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/ModeleRepo.php
+
+		-
+			message: '#^Method MoisGenerator\:\:listerJours\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/MoisGenerator.php
+
+		-
+			message: '#^Method MoisGenerator\:\:listerJoursAvecDetails\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/MoisGenerator.php
+
+		-
+			message: '#^Method Surveillance\:\:chargerEtat\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:diff\(\) has parameter \$apres with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:diff\(\) has parameter \$avant with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:evaluer\(\) has parameter \$ctx with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:evaluer\(\) has parameter \$state with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:extraireDetail\(\) has parameter \$ctx with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:notifier\(\) has parameter \$ctx with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:notifier\(\) has parameter \$motifs with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:sauverEtat\(\) has parameter \$state with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Method Surveillance\:\:surveiller\(\) has parameter \$ctx with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Static method Surveillance\:\:extraireDetail\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between '''' and '''' will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/src/Surveillance.php
+
+		-
+			message: '#^Function couleurReferente\(\) has parameter \$jour with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Function flashLire\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Function iconPaths\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Function jourAccueilleInscriptions\(\) has parameter \$jour with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Function jourBloque\(\) has parameter \$jour with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Function jourOuvreVoisines\(\) has parameter \$jour with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
+			message: '#^Variable \$jour might not be defined\.$#'
+			identifier: variable.undefined
+			count: 15
+			path: app/views/_detail.php
+
+		-
+			message: '#^Variable \$fermeture might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/_fermeture.php
+
+		-
+			message: '#^Variable \$jour might not be defined\.$#'
+			identifier: variable.undefined
+			count: 11
+			path: app/views/_ligne.php
+
+		-
+			message: '#^Variable \$mois might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/jour.php
+
+		-
+			message: '#^Variable \$fermetures might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/mois.php
+
+		-
+			message: '#^Variable \$jours might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/mois.php
+
+		-
+			message: '#^Variable \$mois might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/views/mois.php
+
+		-
+			message: '#^Variable \$assoLogo might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/reglages.php
+
+		-
+			message: '#^Variable \$assoNom might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/views/reglages.php
+
+		-
+			message: '#^Variable \$bandeau might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/reglages.php
+
+		-
+			message: '#^Variable \$fermetures might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/views/reglages.php
+
+		-
+			message: '#^Variable \$modeles might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/views/reglages.php
+
+		-
+			message: '#^Variable \$pdo might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/views/reglages.php
+
+		-
+			message: '#^Function redirect\(\) has parameter \$ctx with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: www/index.php

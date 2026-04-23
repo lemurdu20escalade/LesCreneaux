@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Créneaux">
+  <rect width="64" height="64" rx="14" fill="#1976d2"/>
+  <rect x="16" y="18" width="32" height="6" rx="3" fill="#ffffff"/>
+  <rect x="16" y="29" width="32" height="6" rx="3" fill="#ffffff" opacity="0.75"/>
+  <rect x="16" y="40" width="32" height="6" rx="3" fill="#ffffff" opacity="0.5"/>
+</svg>

@@ -1,0 +1,40 @@
+<?php
+// Copier ce fichier vers app/config.php et renseigner les valeurs.
+// Ne JAMAIS committer app/config.php (cf. .gitignore).
+
+declare(strict_types=1);
+
+// URL publique (sans slash final).
+const BASE_URL    = '';                              // ex: 'https://creneaux.mon-asso.org'
+
+// Dossier runtime (hors docroot, writable par le user PHP).
+const DATA_DIR    = '';                              // ex: __DIR__ . '/../data'
+
+// Chemin absolu vers le fichier SQLite. Dérivé de DATA_DIR par défaut.
+const DB_PATH     = DATA_DIR . '/creneaux.sqlite';
+
+// Secret HMAC pour le CSRF, 64 caractères hexadécimaux.
+// Générer : php -r "echo bin2hex(random_bytes(32));"
+const SECRET_CSRF = '';
+
+// Expéditeur des mails (notifications d'annulation de créneau, phase ultérieure).
+const MAIL_FROM   = '';                              // ex: 'contact@mon-asso.org'
+
+// Flux SSE en plus du polling htmx (off par défaut : polling 30 s suffit).
+const SSE_ENABLED = false;
+
+// Webhook Discord pour être prévenu des modifications dans les réglages.
+// Vide = désactivé. Créer via Paramètres du salon → Intégrations → Webhooks.
+const DISCORD_WEBHOOK_URL = '';
+
+// --- Customisation d'instance (surchargeable sans toucher au repo public) ---
+// Ces valeurs sont les DÉFAUTS affichés tant que l'admin n'a rien réglé via
+// /reglages. Une fois un réglage posé dans la carte « Identité de l'asso »,
+// la DB prend le pas. Surcharger ici pour éviter d'avoir à cliquer après
+// chaque install ; ce fichier n'est pas commité (voir .gitignore), donc tes
+// valeurs d'asso ne partent pas dans le repo public.
+const ASSO_NOM_DEFAUT      = 'Mon asso';             // ex: 'Le MUR XXe'
+const ASSO_LOGO_URL_DEFAUT = '';                     // URL publique http/https, vide = pas de logo
+
+// Fuseau horaire (affecte la génération automatique des mois).
+date_default_timezone_set('Europe/Paris');
