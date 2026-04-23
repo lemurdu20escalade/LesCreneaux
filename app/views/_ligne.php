@@ -78,7 +78,7 @@ $rendreRef = static function (array $r) use ($hDebutJour, $hFinJour): string {
 
         <?php if ($nbRef > 0): ?>
             <span class="c-refs">
-                Encadré par <?= e(implode(', ', array_map($rendreRef, $afficheRef))) ?><?php if ($resteRef > 0): ?><span class="c-reste"> + <?= $resteRef ?></span><?php endif; ?>
+                Référents : <?= e(implode(', ', array_map($rendreRef, $afficheRef))) ?><?php if ($resteRef > 0): ?><span class="c-reste"> + <?= $resteRef ?></span><?php endif; ?>
             </span>
         <?php endif; ?>
 

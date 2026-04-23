@@ -21,7 +21,7 @@ $CAF     = $labelId['CAF']             ?? null;
 $PE      = $labelId['Parents-enfants'] ?? null;
 $FERME   = $labelId['Salle fermée']    ?? null;
 $SPE     = $labelId['Séance spéciale'] ?? null;
-$VOISINS = $labelId['Voisin·es']       ?? null;
+$VOISINS = $labelId['Ouvert aux voisin·es'] ?? null;
 
 // [date, hd, hf, cap, note_jour, labels[], referentes[[nom,hd,hf], …], inscriptions[[nom, voisine, note], …]]
 $data = [

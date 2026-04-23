@@ -530,7 +530,7 @@ $router->post('/modele/semaine-type', function (): void {
     // Labels par défaut déjà seedés par les migrations 007 et 008.
     $labelCaf = (int)$pdo->query("SELECT id FROM labels WHERE nom = 'CAF'")->fetchColumn();
     $labelPe  = (int)$pdo->query("SELECT id FROM labels WHERE nom = 'Parents-enfants'")->fetchColumn();
-    $labelV   = (int)$pdo->query("SELECT id FROM labels WHERE nom = 'Voisin·es'")->fetchColumn();
+    $labelV   = (int)$pdo->query("SELECT id FROM labels WHERE nom = 'Ouvert aux voisin·es'")->fetchColumn();
 
     $modeles = [
         [1, '18:00', '22:30', 15, null, [$labelV]],
