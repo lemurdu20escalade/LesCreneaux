@@ -18,7 +18,7 @@ foreach ($pdo->query("SELECT id, nom FROM labels") as $r) {
 }
 $CAF     = $labelId['CAF']             ?? null;
 $PE      = $labelId['Parents-enfants'] ?? null;
-$VOISINS = $labelId['Voisin·es']       ?? null;
+$VOISINS = $labelId['Ouvert aux voisin·es'] ?? null;
 
 // [jour_semaine, hd, hf, capa, labels[], commentaire]
 $modeles = [

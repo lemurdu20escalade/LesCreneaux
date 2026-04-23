@@ -93,4 +93,4 @@ INSERT OR IGNORE INTO labels (nom, couleur, bloque_inscriptions, ouvre_voisines)
   ('Parents-enfants', '#7e57c2', 0, 0),
   ('Salle fermée',    '#b71c1c', 1, 0),
   ('Séance spéciale', '#0e5a7e', 1, 0),
-  ('Voisin·es',       '#0d47a1', 0, 1);
+  ('Ouvert aux voisin·es', '#0d47a1', 0, 1);
