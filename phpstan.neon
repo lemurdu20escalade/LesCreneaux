@@ -1,0 +1,24 @@
+# Configuration PHPStan — analyse statique niveau 6.
+#
+# But : capter les régressions futures (nullability, types d'argument,
+# utilisations non-existantes), sans imposer de tout typer d'un coup.
+# La baseline phpstan-baseline.neon absorbe les erreurs existantes ;
+# la régénérer à chaque commit qui change du code PHP :
+#   composer install
+#   vendor/bin/phpstan analyse --generate-baseline
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 6
+    paths:
+        - app
+        - www
+    bootstrapFiles:
+        - app/config.php.example
+    excludePaths:
+        - data/*
+        - vendor/*
+    # Les vues PHP manipulent $jour['heure_fin'] etc. avec des clés
+    # chaîne ; PHPStan n'a pas le contexte SQL pour les typer. Toléré.
+    treatPhpDocTypesAsCertain: false

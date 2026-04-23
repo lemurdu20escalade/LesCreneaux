@@ -1,0 +1,63 @@
+# --- Front controller -------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Fichiers et dossiers réels servis directement (assets, robots.txt, favicon)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Tout le reste passe par index.php
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+AddDefaultCharset UTF-8
+FileETag None
+ServerSignature Off
+
+# --- Sécurité, noindex, cache navigateur ------------------------------------
+#
+# La CSP n'est PAS posée ici : c'est index.php qui la gère pour toutes les
+# réponses dynamiques (voir le middleware en tête d'index.php). Raisons :
+#   - source unique de vérité (pas de divergence Apache ↔ PHP)
+#   - peut rester cohérente quel que soit le serveur (nginx, built-in, etc.)
+#   - permet l'override par route si besoin
+# Les statiques (/assets/*) n'ont pas besoin de CSP, ils n'exécutent rien.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options        "DENY"
+    Header always set Referrer-Policy        "same-origin"
+    Header always set Permissions-Policy     "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+    Header always set X-Robots-Tag           "noindex, nofollow"
+
+    # Cache : assets 1 an immutable, HTML jamais caché.
+    <FilesMatch "\.(css|js|svg|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(php|html)$">
+        Header set Cache-Control "no-store"
+    </FilesMatch>
+</IfModule>
+
+# --- Compression ------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/javascript application/json image/svg+xml
+</IfModule>
+
+# --- Fallback Expires si mod_headers absent ---------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css               "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/svg+xml          "access plus 1 year"
+    ExpiresByType font/woff2             "access plus 1 year"
+    ExpiresByType text/html              "access plus 0 seconds"
+</IfModule>
+
+# --- Blocage accès direct aux SQLite (défense en profondeur) ---------------
+<FilesMatch "\.(sqlite|sqlite-journal|sqlite-wal|sqlite-shm|db)$">
+    Require all denied
+</FilesMatch>
