@@ -3,7 +3,11 @@
 declare(strict_types=1);
 /**
  * Page de connexion admin. Attend $erreur (string|null) et $retour (string).
+ * Défauts défensifs pour PHPStan qui ne suit pas les variables passées via
+ * scope d'include — runtime, le contrôleur les renseigne toujours.
  */
+$erreur = $erreur ?? null;
+$retour = $retour ?? '/reglages';
 ?>
 <header class="page-entete">
     <h2 class="page-titre">Connexion admin</h2>

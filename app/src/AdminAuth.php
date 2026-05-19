@@ -24,7 +24,14 @@ final class AdminAuth
 
     public static function estActive(): bool
     {
-        return defined('ADMIN_PASSWORD_HASH') && ADMIN_PASSWORD_HASH !== '';
+        // Passe par constant() plutôt qu'un accès direct : PHPStan a la
+        // valeur littérale '' via le bootstrap config.example et déduirait
+        // que la comparaison est toujours fausse. constant() retourne mixed,
+        // donc l'inférence reste prudente. Runtime inchangé.
+        if (!defined('ADMIN_PASSWORD_HASH')) {
+            return false;
+        }
+        return (string) constant('ADMIN_PASSWORD_HASH') !== '';
     }
 
     public static function connecte(): bool
@@ -74,7 +81,8 @@ final class AdminAuth
         if (!self::estActive()) {
             return false;
         }
-        if (!password_verify($passwordClair, ADMIN_PASSWORD_HASH)) {
+        $hash = (string) constant('ADMIN_PASSWORD_HASH');
+        if (!password_verify($passwordClair, $hash)) {
             // Délai constant pour gêner le brute-force et masquer un
             // éventuel side-channel timing sur password_verify.
             sleep(self::DELAI_ECHEC);
