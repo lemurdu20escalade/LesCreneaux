@@ -145,6 +145,34 @@ function runAdminAuth(): void
     $idJourRef = (int)$pdoRef->lastInsertId();
     unset($pdoRef);
 
+    // GET détail d'un jour SANS cookie admin : la vue ne doit PAS afficher
+    // les formulaires admin (édition créneau, suppression créneau). Le
+    // visiteur garde ses actions publiques (inscription, ajout référent·e).
+    $rDetail = http('GET', "/jour/$idJourRef", [], ['csrf_session' => $cookieCsrf]);
+    ok(
+        !str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/update"'),
+        'Auth actif — vue détail SANS admin ne contient pas le form /update'
+    );
+    ok(
+        !str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
+        'Auth actif — vue détail SANS admin ne contient pas le form /supprimer créneau'
+    );
+    ok(
+        str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/inscrire"')
+            && str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/referente/ajouter"'),
+        'Auth actif — vue détail SANS admin garde inscrire + referente/ajouter'
+    );
+
+    $rDetailAdmin = http('GET', "/jour/$idJourRef", [], [
+        'csrf_session'  => $cookieCsrf,
+        'admin_session' => $cookieAdminSession,
+    ]);
+    ok(
+        str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/update"')
+            && str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
+        'Auth actif — vue détail AVEC admin contient bien /update et /supprimer'
+    );
+
     $tokens = csrfTokens($cookieCsrf);
     $r = http(
         'POST',

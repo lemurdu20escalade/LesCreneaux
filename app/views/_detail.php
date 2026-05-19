@@ -178,6 +178,7 @@ $hxSwap   = $inDrawer
         <?php endif; ?>
     </section>
 
+    <?php if (!AdminAuth::estActive() || AdminAuth::connecte()): ?>
     <details class="bloc-edition">
         <summary><?= icon('edit', 16) ?><span>Modifier ce créneau</span></summary>
         <form action="/jour/<?= $jourId ?>/update" method="post" class="form-edit">
@@ -225,4 +226,5 @@ $hxSwap   = $inDrawer
             <button type="submit" class="btn btn--danger">Supprimer ce créneau</button>
         </form>
     </details>
+    <?php endif; ?>
 </article>
