@@ -7,12 +7,29 @@ declare(strict_types=1);
 
 final class Csrf
 {
+    // Codes de vérification retournés par verifierPostDetail. Stables :
+    // utilisés par le handler /admin/login pour afficher un message
+    // différencié, et par les tests pour cibler un motif précis.
+    public const OK          = 'ok';
+    public const MANQUANT    = 'manquant';     // champ absent du POST
+    public const HONEYPOT    = 'honeypot';     // bot a rempli le piège
+    public const TOKEN       = 'token';        // _csrf ne correspond pas au cookie
+    public const TS_SIG      = 'ts_sig';       // _ts_sig forgé
+    public const TROP_RAPIDE = 'trop_rapide';  // soumission en moins de TIMING_MIN_S
+    public const EXPIRE      = 'expire';       // _ts hors fenêtre (passé > MAX_AGE_S ou futur)
+
     // Fenêtre de validité maximale d'un token signé côté formulaire.
     // Sans borne haute, un token capturé une fois est rejouable
     // indéfiniment — bot zéro-friction. 2 h = couvre le cas « j'ouvre
     // la page, je pars boire un café, je reviens soumettre » sans
     // laisser un script tourner toute la journée sur le même couple.
-    private const MAX_AGE_S = 7200;
+    private const MAX_AGE_S    = 7200;
+
+    // Borne basse anti-bot. Un humain rempli/clique difficilement en
+    // moins de 2 s ; un script si. Désactivable par les flows
+    // interactifs où ce filtre dessert l'UX (login admin avec password
+    // manager qui auto-fill + submit, par exemple).
+    private const TIMING_MIN_S = 2;
 
     /** Cookie anonyme posé au premier GET, 16 octets hex. */
     public static function cookie(): string
@@ -51,29 +68,61 @@ final class Csrf
               . ' autocomplete="off" aria-hidden="true" class="hp">';
     }
 
-    /** True si le POST est valide (CSRF + honeypot + timing ≥ 2 s). */
-    public static function verifierPost(array $post): bool
+    /**
+     * Vérification détaillée. Retourne self::OK ou l'un des motifs
+     * d'échec ci-dessus. Utile pour différencier le message UX
+     * (« token expiré, recharge » vs « soumission refusée »).
+     *
+     * @param array<string,mixed>           $post
+     * @param array{timing_min?:bool}       $options  timing_min=false
+     *        bypasse la borne basse de 2 s (à réserver aux flows
+     *        interactifs où l'utilisateur peut légitimement
+     *        submit en < 2 s, ex. login).
+     */
+    public static function verifierPostDetail(array $post, array $options = []): string
     {
-        $tokenPost    = (string)($post['_csrf']   ?? '');
-        $honeypot     = (string)($post['website'] ?? '');
-        $ts           = (int)   ($post['_ts']     ?? 0);
-        $tsSigPost    = (string)($post['_ts_sig'] ?? '');
+        $timingMin = $options['timing_min'] ?? true;
+
+        if (!isset($post['_csrf'], $post['_ts'], $post['_ts_sig'])) {
+            return self::MANQUANT;
+        }
+        $tokenPost = (string)$post['_csrf'];
+        $honeypot  = (string)($post['website'] ?? '');
+        $ts        = (int)   $post['_ts'];
+        $tsSigPost = (string)$post['_ts_sig'];
 
         if ($honeypot !== '') {
-            return false;
+            return self::HONEYPOT;
         }
         if (!hash_equals(self::token(), $tokenPost)) {
-            return false;
+            return self::TOKEN;
         }
         $tsSigExpected = hash_hmac('sha256', (string)$ts, SECRET_CSRF);
         if (!hash_equals($tsSigExpected, $tsSigPost)) {
-            return false;
+            return self::TS_SIG;
+        }
+        if ($ts <= 0) {
+            return self::EXPIRE;
         }
         $age = time() - $ts;
-        if ($ts <= 0 || $age < 2 || $age > self::MAX_AGE_S) {
-            return false;
+        if ($age < 0 || $age > self::MAX_AGE_S) {
+            return self::EXPIRE;
         }
-        return true;
+        if ($timingMin && $age < self::TIMING_MIN_S) {
+            return self::TROP_RAPIDE;
+        }
+        return self::OK;
     }
 
+    /**
+     * Wrapper booléen pour les appels qui ne s'intéressent pas au motif
+     * d'échec (inscription, désinscription, réglages). Conserve la
+     * sémantique stricte historique : timing minimum actif.
+     *
+     * @param array<string,mixed> $post
+     */
+    public static function verifierPost(array $post): bool
+    {
+        return self::verifierPostDetail($post) === self::OK;
+    }
 }
