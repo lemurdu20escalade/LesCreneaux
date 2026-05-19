@@ -22,6 +22,14 @@ final class RateLimit
     private const BURST_WINDOW_SECONDS = 60;
     private const BURST_SEUIL          = 5;
 
+    // Compteur séparé pour les POST /inscrire avec CSRF KO : sans ce
+    // suivi, un attaquant qui flood des requêtes mal signées passe sous
+    // le radar — le check CSRF rejette en 400 AVANT que verifierInscription
+    // soit appelé, donc le compteur principal n'est jamais incrémenté.
+    // On alerte au-delà de SEUIL_ERREURS_CSRF erreurs / fenêtre / IP.
+    private const PREFIXE_ERREUR_CSRF  = 'csrf:';
+    private const SEUIL_ERREURS_CSRF   = 50;
+
     /**
      * True si l'IP peut s'inscrire, false si la limite est atteinte.
      * Enregistre l'événement uniquement quand l'accès est autorisé.
@@ -57,10 +65,56 @@ final class RateLimit
         // les hits suivants dans la même fenêtre burst noient le canal
         // Discord (la limite est de 30 msg/min/webhook côté Discord).
         if ($burstApres === self::BURST_SEUIL) {
-            self::notifierBurst($ip, $burstApres);
+            self::notifier(sprintf(
+                'Burst inscriptions : %d en %d s depuis %s',
+                $burstApres, self::BURST_WINDOW_SECONDS, $ip
+            ));
         }
 
         return true;
+    }
+
+    /**
+     * Incrémente le compteur d'erreurs CSRF pour cette IP, alerte au
+     * franchissement de SEUIL_ERREURS_CSRF. Fail-open silencieux : si
+     * l'I/O échoue, on log mais on ne lève pas — on est déjà dans le
+     * chemin d'erreur du handler, pas le moment de tuer la réponse 400.
+     */
+    public static function compterErreurCsrf(string $ip): void
+    {
+        if ($ip === '') {
+            return;
+        }
+        try {
+            self::enregistrerErreurCsrf(self::normaliserIp($ip));
+        } catch (RuntimeException $e) {
+            error_log('RateLimit erreur CSRF dégradé : ' . $e->getMessage());
+        }
+    }
+
+    private static function enregistrerErreurCsrf(string $ip): void
+    {
+        $cle  = self::PREFIXE_ERREUR_CSRF . $ip;
+        $path = DATA_DIR . '/rate-limit.json';
+        $fh   = self::ouvrirVerrouille($path);
+
+        $now        = time();
+        $data       = self::purgerGlobal(self::lireDonnees($fh), $now);
+        $timestamps = $data[$cle] ?? [];
+        $timestamps[] = $now;
+        $data[$cle] = $timestamps;
+
+        self::ecrireDonnees($fh, $data);
+        self::libererEtFermer($fh);
+
+        // Alerte au franchissement exact, pas à chaque hit au-delà —
+        // sinon un attaquant qui maintient le flood spammerait le canal.
+        if (count($timestamps) === self::SEUIL_ERREURS_CSRF) {
+            self::notifier(sprintf(
+                'Burst erreurs CSRF : %d en %d s depuis %s (brute-force probable)',
+                self::SEUIL_ERREURS_CSRF, self::FENETRE_SECONDS, $ip
+            ));
+        }
     }
 
     /**
@@ -160,14 +214,13 @@ final class RateLimit
         fflush($fh);
     }
 
-    private static function notifierBurst(string $ip, int $nb): void
+    /**
+     * Alerte locale + Discord. Log systématique pour garder une trace
+     * même si DISCORD_WEBHOOK_URL est vide ou si Discord est KO.
+     */
+    private static function notifier(string $resume): void
     {
-        // Log local systématique : trace de secours si Discord est KO
-        // ou si DISCORD_WEBHOOK_URL n'est pas configuré.
-        error_log(sprintf(
-            'RateLimit burst : %s — %d inscriptions en %ds',
-            $ip, $nb, self::BURST_WINDOW_SECONDS
-        ));
+        error_log('RateLimit : ' . $resume);
 
         if (!defined('DISCORD_WEBHOOK_URL') || DISCORD_WEBHOOK_URL === '') {
             return;
@@ -177,9 +230,7 @@ final class RateLimit
         }
 
         $quand   = (new DateTimeImmutable('now'))->format('d/m H:i');
-        $content = "[RATE-LIMIT] Burst inscriptions\n"
-            . "`{$ip}` : {$nb} inscriptions en "
-            . self::BURST_WINDOW_SECONDS . " s · {$quand}";
+        $content = "[RATE-LIMIT] {$resume} · {$quand}";
 
         $payload = json_encode(
             ['content' => $content],

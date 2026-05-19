@@ -184,13 +184,17 @@ $router->get('/jour/{id}', function (array $params) use ($appDir): void {
 });
 
 $router->post('/jour/{id}/inscrire', function (array $params): void {
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (!Csrf::verifierPost($_POST)) {
+        // On compte les erreurs CSRF dans un compteur séparé du rate-
+        // limit : sans ce suivi, un flood de POST mal signés ne touche
+        // pas le quota d'inscription et passe sous le radar.
+        RateLimit::compterErreurCsrf($ip);
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
     }
     // Anti-abus, pas firewall : si l'I/O sur l'état rate-limit échoue
     // (perm, quota disque), on log et on laisse passer l'inscription
     // plutôt que de casser le formulaire pour tout le monde.
-    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     try {
         $ipAutorisee = RateLimit::verifierInscription($ip);
     } catch (RuntimeException $e) {
