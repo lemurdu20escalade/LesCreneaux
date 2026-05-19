@@ -2,14 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 declare(strict_types=1);
 
-// Rate-limit IP sur les inscriptions, état persisté dans
-// DATA_DIR/rate-limit.json. Anti-spam, pas firewall : l'appelant peut
-// décider de fail-open si l'I/O échoue (cf. www/index.php).
+// Rate-limit IP sur les écritures publiques (inscription, désinscription)
+// et le login admin. Anti-spam, pas firewall : les routes publiques
+// laissent passer si l'I/O sur l'état échoue, c'est l'appelant qui
+// choisit (cf. www/index.php).
+//
+// État persisté dans DATA_DIR/rate-limit.json, sérialisé par flock LOCK_EX
+// avec try/finally pour garantir que le verrou est rendu même si une
+// exception est levée entre l'acquisition et la libération.
 //
 // Note proxy/CDN : on utilise REMOTE_ADDR brut (cf. www/index.php). Si
 // l'instance passe un jour derrière un proxy de confiance, factoriser
-// une fonction clientIp() avant d'appeler ici, sinon toutes les
-// inscriptions partagent un quota commun.
+// une fonction clientIp() avant d'appeler ici, sinon toutes les requêtes
+// partagent un quota commun.
 //
 // Note flock : verrou advisory, supposé sur FS local. Pas garanti sur
 // NFS exotique de mutualisé ; si l'asso migre vers ce type d'héberge-
@@ -22,146 +27,202 @@ final class RateLimit
     private const BURST_WINDOW_SECONDS = 60;
     private const BURST_SEUIL          = 5;
 
-    // Compteur séparé pour les POST /inscrire avec CSRF KO : sans ce
-    // suivi, un attaquant qui flood des requêtes mal signées passe sous
-    // le radar — le check CSRF rejette en 400 AVANT que verifierInscription
-    // soit appelé, donc le compteur principal n'est jamais incrémenté.
-    // On alerte au-delà de SEUIL_ERREURS_CSRF erreurs / fenêtre / IP.
+    // Compteur séparé pour les POST avec CSRF KO : sans ce suivi, un
+    // attaquant qui flood des requêtes mal signées passe sous le radar —
+    // le check CSRF rejette en 400 AVANT que verifier* soit appelé,
+    // donc le compteur principal n'est jamais incrémenté.
     private const PREFIXE_ERREUR_CSRF  = 'csrf:';
     private const SEUIL_ERREURS_CSRF   = 50;
 
     // Désinscriptions : la friction zéro est l'esprit du projet (un·e
     // référent·e peut nettoyer un créneau avant la séance). On laisse
-    // donc une marge large, juste assez pour couper net un vandalisme
+    // une marge large par IP, juste assez pour couper net un vandalisme
     // massif (effacer un mois entier = 45+ désinscriptions).
     private const PREFIXE_DESINSCR      = 'desinscr:';
     private const LIMITE_DESINSCRIPTION = 30;
 
-    /**
-     * True si l'IP peut s'inscrire, false si la limite est atteinte.
-     * Enregistre l'événement uniquement quand l'accès est autorisé.
-     * Lève RuntimeException si l'I/O sur l'état est impossible —
-     * l'appelant choisit fail-open ou fail-closed.
-     */
+    // Compteur global (toutes IPs confondues) qui sert d'alerte en cas
+    // de rotation d'IP (un attaquant qui contrôle un /56 IPv6 peut
+    // contourner le quota par-IP en alternant 256 préfixes /64). On
+    // n'utilise PAS ce compteur pour bloquer : un événement légitime
+    // (groupe scolaire qui se désinscrit) peut générer des rafales. On
+    // alerte juste l'admin pour qu'il regarde data/rate-limit.json.
+    private const CLE_GLOBAL_DESINSCR    = '_total:desinscr';
+    private const SEUIL_GLOBAL_DESINSCR  = 100;
+
+    // Brute-force /admin/login. Sans ce compteur, un attaquant peut
+    // saturer les workers PHP-FPM avec des tentatives parallèles ; le
+    // sleep(1) côté AdminAuth retient un worker pendant 1 s par essai.
+    private const PREFIXE_ECHEC_LOGIN = 'login:';
+    private const LIMITE_ECHECS_LOGIN = 10;
+    private const BURST_ECHEC_LOGIN   = 5;
+
     public static function verifierInscription(string $ip): bool
     {
         if ($ip === '') {
             return true;
         }
-        $ip   = self::normaliserIp($ip);
-        $path = DATA_DIR . '/rate-limit.json';
-        $fh   = self::ouvrirVerrouille($path);
+        $ip = self::normaliserIp($ip);
+        return self::sousVerrou(function (array $data) use ($ip): array {
+            $now        = time();
+            $data       = self::purgerGlobal($data, $now);
+            $timestamps = self::tsListe($data[$ip] ?? null);
 
-        $now        = time();
-        $data       = self::purgerGlobal(self::lireDonnees($fh), $now);
-        $timestamps = $data[$ip] ?? [];
-
-        if (count($timestamps) >= self::LIMITE_PAR_FENETRE) {
-            self::libererEtFermer($fh);
-            return false;
-        }
-
-        $burstApres   = self::compterBurst($timestamps, $now) + 1;
-        $timestamps[] = $now;
-        $data[$ip]    = $timestamps;
-
-        self::ecrireDonnees($fh, $data);
-        self::libererEtFermer($fh);
-
-        // Notifier uniquement au franchissement du seuil — évite que
-        // les hits suivants dans la même fenêtre burst noient le canal
-        // Discord (la limite est de 30 msg/min/webhook côté Discord).
-        if ($burstApres === self::BURST_SEUIL) {
-            self::notifier(sprintf(
-                'Burst inscriptions : %d en %d s depuis %s',
-                $burstApres, self::BURST_WINDOW_SECONDS, $ip
-            ));
-        }
-
-        return true;
+            if (count($timestamps) >= self::LIMITE_PAR_FENETRE) {
+                return ['result' => false, 'data' => $data, 'after' => null];
+            }
+            $burstApres   = self::compterBurst($timestamps, $now) + 1;
+            $timestamps[] = $now;
+            $data[$ip]    = $timestamps;
+            $after        = $burstApres === self::BURST_SEUIL
+                ? fn(): null => self::notifier(sprintf(
+                    'Burst inscriptions : %d en %d s depuis %s',
+                    $burstApres, self::BURST_WINDOW_SECONDS, $ip
+                ))
+                : null;
+            return ['result' => true, 'data' => $data, 'after' => $after];
+        });
     }
 
-    /**
-     * True si l'IP peut désinscrire, false si la limite est atteinte.
-     * Pas de burst Discord : la désinscription est anonyme par design et
-     * un usage normal peut atteindre quelques actions rapides (référent·e
-     * qui nettoie un créneau avant la séance) — l'alerte serait du bruit.
-     * Le 429 reste, et data/rate-limit.json garde la trace.
-     */
     public static function verifierDesinscription(string $ip): bool
     {
         if ($ip === '') {
             return true;
         }
-        $ip   = self::normaliserIp($ip);
-        $path = DATA_DIR . '/rate-limit.json';
-        $fh   = self::ouvrirVerrouille($path);
+        $ip = self::normaliserIp($ip);
+        return self::sousVerrou(function (array $data) use ($ip): array {
+            $now        = time();
+            $data       = self::purgerGlobal($data, $now);
+            $cle        = self::PREFIXE_DESINSCR . $ip;
+            $timestamps = self::tsListe($data[$cle] ?? null);
 
-        $now        = time();
-        $data       = self::purgerGlobal(self::lireDonnees($fh), $now);
-        $cle        = self::PREFIXE_DESINSCR . $ip;
-        $timestamps = $data[$cle] ?? [];
+            if (count($timestamps) >= self::LIMITE_DESINSCRIPTION) {
+                return ['result' => false, 'data' => $data, 'after' => null];
+            }
+            $timestamps[]               = $now;
+            $data[$cle]                 = $timestamps;
+            $global                     = self::tsListe($data[self::CLE_GLOBAL_DESINSCR] ?? null);
+            $global[]                   = $now;
+            $data[self::CLE_GLOBAL_DESINSCR] = $global;
 
-        if (count($timestamps) >= self::LIMITE_DESINSCRIPTION) {
-            self::libererEtFermer($fh);
-            return false;
-        }
-
-        $timestamps[] = $now;
-        $data[$cle]   = $timestamps;
-        self::ecrireDonnees($fh, $data);
-        self::libererEtFermer($fh);
-        return true;
+            // Alerte au franchissement exact du seuil global, pour
+            // détecter une rotation d'IP qui passerait sous le quota
+            // par-IP. Non bloquant.
+            $after = count($global) === self::SEUIL_GLOBAL_DESINSCR
+                ? fn(): null => self::notifier(sprintf(
+                    'Désinscriptions inhabituelles : %d en %d s toutes IPs '
+                    . 'confondues (rotation d\'IP probable)',
+                    self::SEUIL_GLOBAL_DESINSCR, self::FENETRE_SECONDS
+                ))
+                : null;
+            return ['result' => true, 'data' => $data, 'after' => $after];
+        });
     }
 
-    /**
-     * Incrémente le compteur d'erreurs CSRF pour cette IP, alerte au
-     * franchissement de SEUIL_ERREURS_CSRF. Fail-open silencieux : si
-     * l'I/O échoue, on log mais on ne lève pas — on est déjà dans le
-     * chemin d'erreur du handler, pas le moment de tuer la réponse 400.
-     */
     public static function compterErreurCsrf(string $ip): void
     {
         if ($ip === '') {
             return;
         }
+        $ip = self::normaliserIp($ip);
         try {
-            self::enregistrerErreurCsrf(self::normaliserIp($ip));
+            self::sousVerrou(function (array $data) use ($ip): array {
+                $now        = time();
+                $data       = self::purgerGlobal($data, $now);
+                $cle        = self::PREFIXE_ERREUR_CSRF . $ip;
+                $timestamps = self::tsListe($data[$cle] ?? null);
+                $timestamps[] = $now;
+                $data[$cle] = $timestamps;
+                $after = count($timestamps) === self::SEUIL_ERREURS_CSRF
+                    ? fn(): null => self::notifier(sprintf(
+                        'Burst erreurs CSRF : %d en %d s depuis %s '
+                        . '(brute-force probable)',
+                        self::SEUIL_ERREURS_CSRF, self::FENETRE_SECONDS, $ip
+                    ))
+                    : null;
+                return ['result' => true, 'data' => $data, 'after' => $after];
+            });
         } catch (RuntimeException $e) {
+            // Fail-open silencieux : on est déjà dans le chemin d'erreur
+            // (CSRF KO → 400), pas le moment de transformer en 500.
             error_log('RateLimit erreur CSRF dégradé : ' . $e->getMessage());
         }
     }
 
-    private static function enregistrerErreurCsrf(string $ip): void
+    public static function verifierEchecLogin(string $ip): bool
     {
-        $cle  = self::PREFIXE_ERREUR_CSRF . $ip;
+        if ($ip === '') {
+            return true;
+        }
+        $ip = self::normaliserIp($ip);
+        return self::sousVerrou(function (array $data) use ($ip): array {
+            $data       = self::purgerGlobal($data, time());
+            $cle        = self::PREFIXE_ECHEC_LOGIN . $ip;
+            $timestamps = self::tsListe($data[$cle] ?? null);
+            $autorise   = count($timestamps) < self::LIMITE_ECHECS_LOGIN;
+            return ['result' => $autorise, 'data' => $data, 'after' => null];
+        });
+    }
+
+    public static function compterEchecLogin(string $ip): void
+    {
+        if ($ip === '') {
+            return;
+        }
+        $ip = self::normaliserIp($ip);
+        try {
+            self::sousVerrou(function (array $data) use ($ip): array {
+                $now        = time();
+                $data       = self::purgerGlobal($data, $now);
+                $cle        = self::PREFIXE_ECHEC_LOGIN . $ip;
+                $timestamps = self::tsListe($data[$cle] ?? null);
+                $burstApres = self::compterBurst($timestamps, $now) + 1;
+                $timestamps[] = $now;
+                $data[$cle] = $timestamps;
+                $after = $burstApres === self::BURST_ECHEC_LOGIN
+                    ? fn(): null => self::notifier(sprintf(
+                        'Burst échecs login admin : %d en %d s depuis %s '
+                        . '(brute-force probable)',
+                        $burstApres, self::BURST_WINDOW_SECONDS, $ip
+                    ))
+                    : null;
+                return ['result' => true, 'data' => $data, 'after' => $after];
+            });
+        } catch (RuntimeException $e) {
+            error_log('RateLimit échec login dégradé : ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Charge l'état, exécute $action (qui retourne la mise à jour) et
+     * écrit le nouvel état, le tout sous LOCK_EX avec try/finally pour
+     * garantir la libération du verrou et la fermeture du handle même
+     * en cas d'exception dans $action.
+     *
+     * $action retourne ['result' => bool, 'data' => array, 'after' => ?callable].
+     * 'after' est exécuté hors-verrou pour ne pas bloquer d'autres
+     * requêtes pendant un éventuel POST Discord.
+     */
+    private static function sousVerrou(callable $action): bool
+    {
         $path = DATA_DIR . '/rate-limit.json';
         $fh   = self::ouvrirVerrouille($path);
-
-        $now        = time();
-        $data       = self::purgerGlobal(self::lireDonnees($fh), $now);
-        $timestamps = $data[$cle] ?? [];
-        $timestamps[] = $now;
-        $data[$cle] = $timestamps;
-
-        self::ecrireDonnees($fh, $data);
-        self::libererEtFermer($fh);
-
-        // Alerte au franchissement exact, pas à chaque hit au-delà —
-        // sinon un attaquant qui maintient le flood spammerait le canal.
-        if (count($timestamps) === self::SEUIL_ERREURS_CSRF) {
-            self::notifier(sprintf(
-                'Burst erreurs CSRF : %d en %d s depuis %s (brute-force probable)',
-                self::SEUIL_ERREURS_CSRF, self::FENETRE_SECONDS, $ip
-            ));
+        try {
+            $update = $action(self::lireDonnees($fh));
+            self::ecrireDonnees($fh, $update['data']);
+        } finally {
+            self::libererEtFermer($fh);
         }
+        if ($update['after'] !== null) {
+            ($update['after'])();
+        }
+        return (bool)$update['result'];
     }
 
     /**
      * IPv6 → préfixe /64. Un FAI grand public route un /64 entier à un
      * abonné ; sans masque, un attaquant rote son IP pour bypass total.
-     * IPv4 inchangé. Format inconnu : retourne tel quel (les tentatives
-     * ultérieures auront la même clé, donc le rate-limit s'applique).
+     * IPv4 inchangé. Format inconnu : retourne tel quel.
      */
     private static function normaliserIp(string $ip): string
     {
@@ -178,10 +239,8 @@ final class RateLimit
     }
 
     /**
-     * Purge toutes les IPs (pas seulement la courante). Sans ça, une IP
-     * vue une seule fois reste dans le fichier indéfiniment — combiné
-     * avec une rotation d'IP, le fichier grossit linéairement et plombe
-     * chaque écriture sous flock.
+     * Purge toutes les IPs/clés (pas seulement la courante). Sans ça, une
+     * IP vue une seule fois reste indéfiniment et le fichier grossit.
      *
      * @param array<string, mixed> $data
      * @return array<string, list<int>>
@@ -191,15 +250,33 @@ final class RateLimit
         $limite = $now - self::FENETRE_SECONDS;
         $out    = [];
         foreach ($data as $cle => $timestamps) {
-            if (!is_array($timestamps)) {
-                continue;
-            }
+            $clean = self::tsListe($timestamps);
             $clean = array_values(array_filter(
-                $timestamps,
-                static fn($t) => is_int($t) && $t > $limite
+                $clean,
+                static fn(int $t): bool => $t > $limite
             ));
             if ($clean !== []) {
                 $out[$cle] = $clean;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Filtre une valeur quelconque en une list<int>. Tolère qu'une clé
+     * du fichier JSON ait été corrompue à la main ou par un bug ancien.
+     *
+     * @return list<int>
+     */
+    private static function tsListe(mixed $brut): array
+    {
+        if (!is_array($brut)) {
+            return [];
+        }
+        $out = [];
+        foreach ($brut as $v) {
+            if (is_int($v)) {
+                $out[] = $v;
             }
         }
         return $out;
@@ -211,7 +288,7 @@ final class RateLimit
         $limite = $now - self::BURST_WINDOW_SECONDS;
         return count(array_filter(
             $timestamps,
-            static fn(int $ts) => $ts > $limite
+            static fn(int $ts): bool => $ts > $limite
         ));
     }
 
@@ -234,8 +311,8 @@ final class RateLimit
 
     private static function libererEtFermer(mixed $fh): void
     {
-        flock($fh, LOCK_UN);
-        fclose($fh);
+        @flock($fh, LOCK_UN);
+        @fclose($fh);
     }
 
     /** @return array<string, mixed> */
@@ -250,13 +327,29 @@ final class RateLimit
         return is_array($decoded) ? $decoded : [];
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * Sérialise et écrit. Si ftruncate ou fwrite échoue (disque plein,
+     * quota), on lève — laisser un fichier corrompu silencieusement
+     * désactiverait le rate-limit jusqu'à la prochaine purge naturelle.
+     *
+     * @param array<string, mixed> $data
+     */
     private static function ecrireDonnees(mixed $fh, array $data): void
     {
         $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new RuntimeException('RateLimit: json_encode échoué : ' . json_last_error_msg());
+        }
         rewind($fh);
-        ftruncate($fh, 0);
-        fwrite($fh, (string)$json);
+        if (ftruncate($fh, 0) === false) {
+            throw new RuntimeException('RateLimit: ftruncate échoué');
+        }
+        $ecrits = fwrite($fh, $json);
+        if ($ecrits === false || $ecrits !== strlen($json)) {
+            throw new RuntimeException('RateLimit: fwrite incomplet ('
+                . ($ecrits === false ? 'false' : $ecrits) . '/'
+                . strlen($json) . ' octets)');
+        }
         fflush($fh);
     }
 

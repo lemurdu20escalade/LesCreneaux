@@ -265,7 +265,12 @@ $router->post('/jour/{id}/desinscrire', function (array $params): void {
         erreur(400, 'Inscription invalide.'); return;
     }
     $pdo = Database::connect(DB_PATH);
-    InscriptionRepo::supprimer($pdo, $inscriptionId);
+    // jour_id obligatoire dans le WHERE : sans ça, un POST sur
+    // /jour/X/desinscrire pourrait supprimer une inscription d'un autre
+    // jour, et le rate-limit qui s'applique à l'URL deviendrait inutile.
+    if (!InscriptionRepo::supprimer($pdo, $inscriptionId, $jourId)) {
+        erreur(404, 'Inscription introuvable sur ce créneau.'); return;
+    }
 
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
         rendreDrawer($pdo, $jourId);
