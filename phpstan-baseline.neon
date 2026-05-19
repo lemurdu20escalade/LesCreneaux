@@ -1,12 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Method Csrf\:\:verifierPost\(\) has parameter \$post with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/src/Csrf.php
-
-		-
 			message: '#^Method FermetureRepo\:\:ajouter\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

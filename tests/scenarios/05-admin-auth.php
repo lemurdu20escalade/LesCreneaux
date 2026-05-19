@@ -135,6 +135,109 @@ function runAdminAuth(): void
         'Auth actif — POST login CSRF KO → form re-rendu avec message lisible'
     );
 
+    // Ajout d'un·e référent·e : action publique, doit fonctionner SANS cookie
+    // admin même en mode auth actif. La suppression reste admin (anti-vandalisme :
+    // retirer la référent·e d'un autre).
+    $pdoRef = dbConnect();
+    $pdoRef->prepare(
+        "INSERT INTO jours (date, heure_debut, heure_fin, capacite) VALUES (?, ?, ?, ?)"
+    )->execute(['2026-08-10', '18:00', '22:30', 100]);
+    $idJourRef = (int)$pdoRef->lastInsertId();
+    unset($pdoRef);
+
+    // GET détail d'un jour SANS cookie admin : la vue affiche les formulaires
+    // d'édition (heures/étiquettes/limite/note) — action publique. Seule la
+    // suppression du créneau reste cachée (anti-vandalisme).
+    $rDetail = http('GET', "/jour/$idJourRef", [], ['csrf_session' => $cookieCsrf]);
+    ok(
+        str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/update"'),
+        'Auth actif — vue détail SANS admin contient le form /update (édition publique)'
+    );
+    ok(
+        !str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
+        'Auth actif — vue détail SANS admin ne contient pas le form /supprimer créneau'
+    );
+    ok(
+        str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/inscrire"')
+            && str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/referente/ajouter"'),
+        'Auth actif — vue détail SANS admin garde inscrire + referente/ajouter'
+    );
+
+    $rDetailAdmin = http('GET', "/jour/$idJourRef", [], [
+        'csrf_session'  => $cookieCsrf,
+        'admin_session' => $cookieAdminSession,
+    ]);
+    ok(
+        str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/update"')
+            && str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
+        'Auth actif — vue détail AVEC admin contient bien /update et /supprimer'
+    );
+
+    // POST /jour/{id}/update : action publique en mode auth actif.
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/jour/$idJourRef/update",
+        array_merge([
+            'heure_debut' => '19:00',
+            'heure_fin'   => '22:00',
+            'capacite'    => 50,
+            'note'        => 'modifié sans login',
+        ], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST /jour/{id}/update SANS admin → 303 (public)');
+    ok(
+        !str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST /jour/{id}/update SANS admin → pas de redirect login'
+    );
+
+    // POST /jour/{id}/supprimer : reste admin-only.
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/jour/$idJourRef/supprimer",
+        $tokens,
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok(
+        $r['code'] === 303
+            && str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST /jour/{id}/supprimer SANS admin → redirect vers /admin/login'
+    );
+
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/jour/$idJourRef/referente/ajouter",
+        array_merge(['nom' => 'TestRef', 'heure_debut' => '18:00'], $tokens),
+        ['csrf_session' => $cookieCsrf]   // pas de cookie admin_session
+    );
+    ok($r['code'] === 303, 'Auth actif — POST referente/ajouter SANS admin → 303 (public)');
+    ok(
+        !str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST referente/ajouter SANS admin → pas de redirect login'
+    );
+
+    $stmtRef = dbConnect()->prepare('SELECT COUNT(*) FROM referentes WHERE nom = ? AND jour_id = ?');
+    $stmtRef->execute(['TestRef', $idJourRef]);
+    ok((int)$stmtRef->fetchColumn() === 1, 'Auth actif — référent·e bien enregistré·e en DB');
+
+    // Suppression : doit rester admin-only.
+    $idRef = (int)dbConnect()->query("SELECT id FROM referentes WHERE nom='TestRef'")->fetchColumn();
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/referente/$idRef/supprimer",
+        $tokens,
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST referente/supprimer SANS admin → 303');
+    ok(
+        str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST referente/supprimer SANS admin → redirect vers /admin/login'
+    );
+
     $r = http('GET', '/admin/logout', [], ['admin_session' => $cookieAdminSession]);
     ok($r['code'] === 303, 'Auth actif — GET /admin/logout → 303');
     ok(($r['headers']['location'] ?? '') === '/', 'Auth actif — logout redirect → /');

@@ -60,6 +60,7 @@ $hxSwap   = $inDrawer
                         <span class="li-principal"><strong><?= e($r['nom']) ?></strong>
                             <span class="meta"><?= e(DateFr::formatPlage($r['heure_debut'], $r['heure_fin'])) ?></span>
                         </span>
+                        <?php if (!AdminAuth::estActive() || AdminAuth::connecte()): ?>
                         <form action="/referente/<?= (int)$r['id'] ?>/supprimer" method="post" class="inline"
                               <?php if ($inDrawer): ?>hx-post="/referente/<?= (int)$r['id'] ?>/supprimer"<?= $hxSwap ?><?php endif; ?>
                               onsubmit="return confirm('Retirer <?= e($r['nom']) ?> comme référent·e ?');">
@@ -68,6 +69,7 @@ $hxSwap   = $inDrawer
                                 <?= icon('close', 18) ?>
                             </button>
                         </form>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -217,10 +219,12 @@ $hxSwap   = $inDrawer
             <button type="submit" class="btn btn--filled">Enregistrer</button>
         </form>
 
+        <?php if (!AdminAuth::estActive() || AdminAuth::connecte()): ?>
         <form action="/jour/<?= $jourId ?>/supprimer" method="post"
               onsubmit="return confirm('Supprimer le créneau du <?= e(DateFr::formatCourt($d)) ?> ?');">
             <?= Csrf::champs() ?>
             <button type="submit" class="btn btn--danger">Supprimer ce créneau</button>
         </form>
+        <?php endif; ?>
     </details>
 </article>
