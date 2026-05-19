@@ -410,7 +410,9 @@ $router->post('/jour/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/jour/{id}/referente/ajouter', function (array $params): void {
-    AdminAuth::exigerConnexion();
+    // Action publique : un·e visiteur·e peut se déclarer référent·e d'un
+    // créneau sans login (cohérent avec /inscrire). La suppression reste
+    // admin pour éviter le retrait d'un·e référent·e par vandalisme.
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
