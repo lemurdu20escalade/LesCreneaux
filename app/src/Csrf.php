@@ -7,6 +7,13 @@ declare(strict_types=1);
 
 final class Csrf
 {
+    // Fenêtre de validité maximale d'un token signé côté formulaire.
+    // Sans borne haute, un token capturé une fois est rejouable
+    // indéfiniment — bot zéro-friction. 2 h = couvre le cas « j'ouvre
+    // la page, je pars boire un café, je reviens soumettre » sans
+    // laisser un script tourner toute la journée sur le même couple.
+    private const MAX_AGE_S = 7200;
+
     /** Cookie anonyme posé au premier GET, 16 octets hex. */
     public static function cookie(): string
     {
@@ -62,7 +69,8 @@ final class Csrf
         if (!hash_equals($tsSigExpected, $tsSigPost)) {
             return false;
         }
-        if ($ts <= 0 || time() - $ts < 2) {
+        $age = time() - $ts;
+        if ($ts <= 0 || $age < 2 || $age > self::MAX_AGE_S) {
             return false;
         }
         return true;
