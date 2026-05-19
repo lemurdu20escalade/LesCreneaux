@@ -35,6 +35,9 @@ $logoUrl = setting(SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
             </h1>
             <nav class="site-nav">
                 <a href="/reglages"><?= icon('settings', 18) ?><span>Réglages</span></a>
+                <?php if (AdminAuth::estActive() && AdminAuth::connecte()): ?>
+                    <a href="/admin/logout"><?= icon('logout', 18) ?><span>Déconnexion</span></a>
+                <?php endif; ?>
             </nav>
         </div>
     </header>

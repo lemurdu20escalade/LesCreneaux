@@ -13,8 +13,10 @@ $retour = $retour ?? '/reglages';
     <h2 class="page-titre">Connexion admin</h2>
     <p class="page-intro">
         Cette protection couvre les modifications des créneaux, des
-        modèles, des étiquettes, des fermetures et des réglages. Les
-        inscriptions et désinscriptions restent publiques.
+        modèles, des étiquettes, des fermetures et des réglages.
+    </p>
+    <p class="page-intro">
+        Les inscriptions et désinscriptions restent publiques.
     </p>
 </header>
 
