@@ -274,6 +274,7 @@ function erreur(int $code, string $message): void
         400 => 'Requête invalide',
         404 => 'Page introuvable',
         409 => 'Conflit',
+        429 => 'Trop de demandes',
     ];
     $libelle = $titres[$code] ?? ('Erreur ' . $code);
     $titre   = $libelle . ' — ' . setting(SettingsRepo::CLE_ASSO_NOM, ASSO_NOM_DEFAUT);

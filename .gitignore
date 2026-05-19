@@ -43,6 +43,10 @@ coverage/
 /TODO.local*
 /notes.local*
 
+# artefacts du pipeline /dev (planning local, pas pour le repo)
+/PHASES.md
+/phases/
+
 # screenshots de tests UI (audit /design, playwright)
 /.design/
 
