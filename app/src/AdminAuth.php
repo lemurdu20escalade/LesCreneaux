@@ -13,8 +13,11 @@ declare(strict_types=1);
 // dans config.php :
 //   php -r "echo password_hash('mot-de-passe', PASSWORD_DEFAULT);"
 //
-// Cookie signé : `<expires>.<hmac(expires, SECRET_CSRF)>`. Stateless,
-// pas de table sessions. Le serveur n'a rien à stocker côté DB.
+// Cookie signé : `<expires>.<hmac(expires|fingerprint(hash), SECRET_CSRF)>`.
+// Le fingerprint (32 premiers caractères du hash bcrypt) inclut un fragment
+// du salt — changer ADMIN_PASSWORD_HASH invalide donc immédiatement TOUS
+// les cookies existants. C'est notre mécanisme de révocation côté serveur
+// sans table sessions : déconnexion = changer le hash.
 
 final class AdminAuth
 {
@@ -51,8 +54,20 @@ final class AdminAuth
         if ($expires < time()) {
             return false;
         }
-        $sigAttendue = hash_hmac('sha256', 'admin:' . $expiresStr, SECRET_CSRF);
-        return hash_equals($sigAttendue, $sigFournie);
+        return hash_equals(self::signer($expires), $sigFournie);
+    }
+
+    /**
+     * HMAC qui inclut un fragment du hash bcrypt courant : changer
+     * ADMIN_PASSWORD_HASH (rotation de mot de passe) invalide d'un coup
+     * tous les cookies déjà émis. Sans ce fragment, un cookie volé reste
+     * valide jusqu'à son expiry naturel même après changement de mdp.
+     */
+    private static function signer(int $expires): string
+    {
+        $hash        = (string) constant('ADMIN_PASSWORD_HASH');
+        $empreinte   = substr($hash, 0, 32);
+        return hash_hmac('sha256', 'admin:' . $expires . ':' . $empreinte, SECRET_CSRF);
     }
 
     /**
@@ -91,8 +106,7 @@ final class AdminAuth
             return false;
         }
         $expires = time() + self::COOKIE_TTL_S;
-        $sig     = hash_hmac('sha256', 'admin:' . $expires, SECRET_CSRF);
-        $cookie  = $expires . '.' . $sig;
+        $cookie  = $expires . '.' . self::signer($expires);
         setcookie(self::COOKIE_NOM, $cookie, [
             'expires'  => $expires,
             'path'     => '/',

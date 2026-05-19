@@ -48,6 +48,23 @@ $logoUrl = setting(SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
                 <?= e($flash['msg']) ?>
             </div>
         <?php endif; ?>
+        <?php
+        // Bandeau si l'auth admin n'est pas configurée, affiché uniquement
+        // sur les pages admin (/reglages, /admin/login). On évite la page
+        // publique pour ne pas signaler la vulnérabilité aux visiteurs.
+        $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+        if (!AdminAuth::estActive()
+            && (str_starts_with($reqUri, '/reglages')
+                || str_starts_with($reqUri, '/admin/login'))): ?>
+            <div class="flash flash--error" role="alert">
+                <strong>Aucun mot de passe admin n'est configuré.</strong>
+                Toute personne qui visite ces pages peut modifier ou
+                supprimer les créneaux, modèles, étiquettes, fermetures et
+                réglages. Renseigne <code>ADMIN_PASSWORD_HASH</code> dans
+                <code>app/config.php</code> pour activer la protection
+                (cf. EXPLOITATION.md §2).
+            </div>
+        <?php endif; ?>
         <?= $contenu ?? '' ?>
     </main>
 

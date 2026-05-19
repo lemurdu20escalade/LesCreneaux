@@ -137,16 +137,28 @@ $router->post('/admin/login', function () use ($appDir): void {
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
     }
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    // Rate-limit /admin/login : sans ça un attaquant peut saturer les
+    // workers PHP-FPM avec des tentatives parallèles, chaque échec
+    // bloquant un worker via sleep(1) côté AdminAuth.
+    if (class_exists('RateLimit') && !RateLimit::verifierEchecLogin($ip)) {
+        erreur(429, 'Trop de tentatives, réessaie dans quelques minutes.'); return;
+    }
     $password = (string)($_POST['password'] ?? '');
     $retour   = (string)($_POST['retour']   ?? '/reglages');
-    // Limite l'URL de retour aux chemins relatifs locaux pour éviter
-    // un open redirect (`?retour=https://evil.tld/`).
-    if ($retour === '' || $retour[0] !== '/' || str_starts_with($retour, '//')) {
+    // Limite l'URL de retour aux chemins relatifs locaux. Le check
+    // `[0] === '/'` seul laissait passer `/\evil.com` (les navigateurs
+    // normalisent en `//evil.com` sur un Location). On exige un slash
+    // suivi d'un caractère qui ne soit ni slash ni backslash.
+    if (!preg_match('#^/[^/\\\\]#', $retour)) {
         $retour = '/reglages';
     }
     if (AdminAuth::tenterConnexion($password)) {
         flash('Connexion admin enregistrée.');
         redirect($retour);
+    }
+    if (class_exists('RateLimit')) {
+        RateLimit::compterEchecLogin($ip);
     }
     $erreur = 'Mot de passe incorrect.';
     $titre  = 'Connexion admin';
