@@ -88,7 +88,11 @@ if ($serverProc === false) {
 // Cleanup au shutdown : kill serveur + suppression temp
 // ---------------------------------------------------------------------------
 
-register_shutdown_function(function () use ($serverProc, $tmpDir): void {
+register_shutdown_function(function () use (&$serverProc, $tmpDir): void {
+    if ($serverProc === null) {
+        supprimerDossier($tmpDir);
+        return;
+    }
     $status = proc_get_status($serverProc);
     if ($status['running'] ?? false) {
         proc_terminate($serverProc);
@@ -835,6 +839,281 @@ function runCsrfExpiration(): void
 }
 
 runCsrfExpiration();
+
+// ---------------------------------------------------------------------------
+// Tests auth admin (phase 6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tue le serveur courant, injecte un nouveau hash dans la config (en remplaçant
+ * ADMIN_PASSWORD_HASH en place), relance le serveur sur le même port, attend
+ * qu'il réponde (max 5s). Passer '' pour laisser la valeur actuelle inchangée.
+ */
+function redemarrerServeur(string $nouvelleValeurHash): void
+{
+    global $serverProc, $configPath, $port, $wwwDir, $baseUrl;
+
+    $status = proc_get_status($serverProc);
+    if ($status['running'] ?? false) {
+        proc_terminate($serverProc);
+    }
+    proc_close($serverProc);
+
+    // Petit délai pour laisser l'OS libérer le port.
+    usleep(300_000);
+
+    // Remplace la valeur de ADMIN_PASSWORD_HASH sans passer par preg_replace :
+    // le hash bcrypt contient des '$' que preg_replace interpréterait comme
+    // des backreferences dans la chaîne de remplacement.
+    if ($nouvelleValeurHash !== '') {
+        $contenuActuel = (string)file_get_contents($configPath);
+        $contenuMaj = preg_replace_callback(
+            "#(const ADMIN_PASSWORD_HASH = ')[^']*(';\n)#",
+            static function (array $m) use ($nouvelleValeurHash): string {
+                return $m[1] . $nouvelleValeurHash . $m[2];
+            },
+            $contenuActuel
+        ) ?? $contenuActuel;
+        file_put_contents($configPath, $contenuMaj);
+    }
+
+    $serverDescriptors = [
+        0 => ['file', '/dev/null', 'r'],
+        1 => ['file', dirname($configPath) . '/server.log', 'w'],
+        2 => ['file', dirname($configPath) . '/server.err', 'w'],
+    ];
+    $serverEnv = array_merge(getenv() ?: [], [
+        'APP_CONFIG_OVERRIDE' => $configPath,
+    ]);
+    $serverCmd = 'php -S 127.0.0.1:' . $port
+        . ' -t ' . escapeshellarg($wwwDir)
+        . ' ' . escapeshellarg($wwwDir . '/_router.php');
+
+    $serverProc = proc_open($serverCmd, $serverDescriptors, $pipes, null, $serverEnv);
+    if ($serverProc === false) {
+        fwrite(STDERR, "redemarrerServeur : proc_open échoué\n");
+        exit(1);
+    }
+
+    $pret     = false;
+    $deadline = microtime(true) + 5.0;
+    while (microtime(true) < $deadline) {
+        $ctx   = stream_context_create(['http' => [
+            'method'          => 'GET',
+            'ignore_errors'   => true,
+            'timeout'         => 0.5,
+            'follow_location' => 0,
+        ]]);
+        $probe = @file_get_contents("$baseUrl/", false, $ctx);
+        if ($probe !== false || !empty($http_response_header)) {
+            $pret = true;
+            break;
+        }
+        usleep(100_000);
+    }
+    if (!$pret) {
+        fwrite(STDERR, "redemarrerServeur : serveur ne répond pas après 5 s\n");
+        exit(1);
+    }
+}
+
+/**
+ * Réécrit $configPath avec la config initiale (sans ADMIN_PASSWORD_HASH surchargé)
+ * et relance le serveur. Appelée en fin de runAdminAuth().
+ */
+function restaurerConfigInitiale(): void
+{
+    global $configPath, $baseUrl, $secretCsrf, $dbPath, $port, $wwwDir;
+
+    file_put_contents($configPath, sprintf(
+        "<?php\ndeclare(strict_types=1);\n"
+        . "const BASE_URL    = %s;\n"
+        . "const DATA_DIR    = %s;\n"
+        . "const DB_PATH     = %s;\n"
+        . "const SECRET_CSRF = %s;\n"
+        . "const MAIL_FROM   = 'test@localhost';\n"
+        . "const SSE_ENABLED = false;\n"
+        . "const DISCORD_WEBHOOK_URL = '';\n"
+        . "const ADMIN_PASSWORD_HASH = '';\n"
+        . "const ASSO_NOM_DEFAUT      = 'TestAsso';\n"
+        . "const ASSO_LOGO_URL_DEFAUT = '';\n"
+        . "date_default_timezone_set('Europe/Paris');\n",
+        var_export($baseUrl, true),
+        var_export(dirname($configPath), true),
+        var_export($dbPath, true),
+        var_export($secretCsrf, true)
+    ));
+
+    redemarrerServeur('');
+}
+
+function runAdminAuth(): void
+{
+    // --- Cas 1 : mode compat (ADMIN_PASSWORD_HASH = '') ---
+
+    resetEtat();
+
+    $r = http('GET', '/reglages');
+    ok($r['code'] === 200, 'Auth compat — GET /reglages → 200');
+
+    $r = http('GET', '/admin/login');
+    ok($r['code'] === 404, 'Auth compat — GET /admin/login → 404');
+
+    $r = http('GET', '/reglages');
+    ok(
+        str_contains($r['body'], "Aucun mot de passe admin n'est configuré."),
+        "Auth compat — /reglages contient le bandeau avertissement"
+    );
+
+    // --- Cas 2 : mode actif ---
+
+    $hash = password_hash('lemur', PASSWORD_DEFAULT);
+    redemarrerServeur($hash);
+
+    $r = http('GET', '/reglages');
+    ok($r['code'] === 303, 'Auth actif — GET /reglages sans cookie → 303');
+    ok(
+        str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — location commence par /admin/login'
+    );
+
+    $r = http('GET', '/admin/login');
+    ok($r['code'] === 200, 'Auth actif — GET /admin/login → 200');
+    ok(
+        str_contains($r['body'], 'Connexion admin'),
+        'Auth actif — body contient "Connexion admin"'
+    );
+
+    $cookieCsrf = bin2hex(random_bytes(16));
+
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'mauvais'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 200, 'Auth actif — POST login mauvais password → 200');
+    ok(
+        str_contains($r['body'], 'Mot de passe incorrect.'),
+        'Auth actif — body contient "Mot de passe incorrect."'
+    );
+
+    // Open-redirect bouché — /\evil.com
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur', 'retour' => '/\\evil.com'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST login retour=/\\evil.com → 303');
+    ok(
+        ($r['headers']['location'] ?? '') === '/reglages',
+        'Auth actif — open-redirect /\\evil.com bouché → location=/reglages'
+    );
+
+    // Open-redirect bouché — //evil.com
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur', 'retour' => '//evil.com'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST login retour=//evil.com → 303');
+    ok(
+        ($r['headers']['location'] ?? '') === '/reglages',
+        'Auth actif — open-redirect //evil.com bouché → location=/reglages'
+    );
+
+    // Login OK avec retour=/reglages
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur', 'retour' => '/reglages'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST login OK → 303');
+    ok(
+        ($r['headers']['location'] ?? '') === '/reglages',
+        'Auth actif — POST login OK → location=/reglages'
+    );
+    $cookieAdminSession = $r['setCookies']['admin_session'] ?? '';
+    ok($cookieAdminSession !== '', 'Auth actif — cookie admin_session présent après login OK');
+
+    $r = http('GET', '/reglages', [], ['admin_session' => $cookieAdminSession]);
+    ok($r['code'] === 200, 'Auth actif — GET /reglages avec cookie valide → 200');
+
+    $r = http('GET', '/admin/logout', [], ['admin_session' => $cookieAdminSession]);
+    ok($r['code'] === 303, 'Auth actif — GET /admin/logout → 303');
+    ok(($r['headers']['location'] ?? '') === '/', 'Auth actif — logout redirect → /');
+
+    $r = http('GET', '/reglages');
+    ok($r['code'] === 303, 'Auth actif — GET /reglages SANS cookie après logout → 303');
+
+    // --- Cas 3 : rate-limit /admin/login (10 échecs + 11ème bloqué) ---
+
+    resetEtat();
+
+    $cookieCsrfRl = bin2hex(random_bytes(16));
+    for ($i = 1; $i <= 10; $i++) {
+        $tokens = csrfTokens($cookieCsrfRl);
+        $r = http(
+            'POST',
+            '/admin/login',
+            array_merge(['password' => 'mauvais'], $tokens),
+            ['csrf_session' => $cookieCsrfRl]
+        );
+        ok($r['code'] === 200, "Auth rate-limit — POST login KO $i/10 → 200");
+    }
+
+    $tokens = csrfTokens($cookieCsrfRl);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'mauvais'], $tokens),
+        ['csrf_session' => $cookieCsrfRl]
+    );
+    ok($r['code'] === 429, 'Auth rate-limit — POST login KO 11 → 429');
+
+    resetEtat();
+
+    // --- Cas 4 : révocation par rotation du hash ---
+
+    // Login avec 'lemur' (hash actuel).
+    $cookieCsrfRev = bin2hex(random_bytes(16));
+    $tokens = csrfTokens($cookieCsrfRev);
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur', 'retour' => '/reglages'], $tokens),
+        ['csrf_session' => $cookieCsrfRev]
+    );
+    $cookieAncien = $r['setCookies']['admin_session'] ?? '';
+    ok($cookieAncien !== '', 'Auth révocation — login OK, cookie ancien récupéré');
+
+    $r = http('GET', '/reglages', [], ['admin_session' => $cookieAncien]);
+    ok($r['code'] === 200, 'Auth révocation — GET /reglages avec cookie ancien → 200');
+
+    $hashNouveau = password_hash('NOUVEAU', PASSWORD_DEFAULT);
+    redemarrerServeur($hashNouveau);
+
+    $r = http('GET', '/reglages', [], ['admin_session' => $cookieAncien]);
+    ok(
+        $r['code'] === 303,
+        'Auth révocation — GET /reglages avec ancien cookie après rotation hash → 303'
+    );
+    ok(
+        str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth révocation — redirect vers /admin/login après rotation hash'
+    );
+
+    restaurerConfigInitiale();
+}
+
+runAdminAuth();
 
 // ---------------------------------------------------------------------------
 // Récap final
