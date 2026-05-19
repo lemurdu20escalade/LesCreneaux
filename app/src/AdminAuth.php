@@ -1,0 +1,110 @@
+<?php
+// SPDX-License-Identifier: AGPL-3.0-or-later
+declare(strict_types=1);
+
+// Authentification admin pour les routes mutating non-publiques :
+// modification/suppression de créneaux, réglages, étiquettes, modèles,
+// fermetures, bandeau, identité. Sans ce verrou, n'importe qui ayant
+// récupéré un cookie csrf_session peut tout effacer en boucle.
+//
+// Mode compatibilité : si ADMIN_PASSWORD_HASH est vide ou non défini,
+// `estActive()` renvoie false et `exigerConnexion()` est no-op — comportement
+// identique aux instances antérieures. Pour activer, renseigner un hash
+// dans config.php :
+//   php -r "echo password_hash('mot-de-passe', PASSWORD_DEFAULT);"
+//
+// Cookie signé : `<expires>.<hmac(expires, SECRET_CSRF)>`. Stateless,
+// pas de table sessions. Le serveur n'a rien à stocker côté DB.
+
+final class AdminAuth
+{
+    private const COOKIE_NOM   = 'admin_session';
+    private const COOKIE_TTL_S = 604800;  // 7 jours
+    private const DELAI_ECHEC  = 1;       // sleep après mauvais mot de passe
+
+    public static function estActive(): bool
+    {
+        return defined('ADMIN_PASSWORD_HASH') && ADMIN_PASSWORD_HASH !== '';
+    }
+
+    public static function connecte(): bool
+    {
+        if (!self::estActive()) {
+            return true;  // mode compat : tout le monde passe
+        }
+        $brut = (string)($_COOKIE[self::COOKIE_NOM] ?? '');
+        if ($brut === '' || !str_contains($brut, '.')) {
+            return false;
+        }
+        [$expiresStr, $sigFournie] = explode('.', $brut, 2);
+        if (!ctype_digit($expiresStr) || $sigFournie === '') {
+            return false;
+        }
+        $expires = (int)$expiresStr;
+        if ($expires < time()) {
+            return false;
+        }
+        $sigAttendue = hash_hmac('sha256', 'admin:' . $expiresStr, SECRET_CSRF);
+        return hash_equals($sigAttendue, $sigFournie);
+    }
+
+    /**
+     * Si l'auth admin est active et que la session n'est pas valide,
+     * redirige vers /admin/login en mémorisant l'URL d'origine. Pour
+     * htmx, on renvoie un header HX-Redirect au lieu d'un Location.
+     */
+    public static function exigerConnexion(): void
+    {
+        if (self::connecte()) {
+            return;
+        }
+        $retour = (string)($_SERVER['REQUEST_URI'] ?? '/');
+        $cible  = '/admin/login?retour=' . rawurlencode($retour);
+        if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
+            header('HX-Redirect: ' . $cible);
+            http_response_code(204);
+            exit;
+        }
+        header('Location: ' . $cible, true, 303);
+        exit;
+    }
+
+    public static function tenterConnexion(string $passwordClair): bool
+    {
+        if (!self::estActive()) {
+            return false;
+        }
+        if (!password_verify($passwordClair, ADMIN_PASSWORD_HASH)) {
+            // Délai constant pour gêner le brute-force et masquer un
+            // éventuel side-channel timing sur password_verify.
+            sleep(self::DELAI_ECHEC);
+            error_log('AdminAuth : tentative login échouée depuis '
+                . ($_SERVER['REMOTE_ADDR'] ?? '?'));
+            return false;
+        }
+        $expires = time() + self::COOKIE_TTL_S;
+        $sig     = hash_hmac('sha256', 'admin:' . $expires, SECRET_CSRF);
+        $cookie  = $expires . '.' . $sig;
+        setcookie(self::COOKIE_NOM, $cookie, [
+            'expires'  => $expires,
+            'path'     => '/',
+            'secure'   => isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE[self::COOKIE_NOM] = $cookie;
+        return true;
+    }
+
+    public static function deconnecter(): void
+    {
+        setcookie(self::COOKIE_NOM, '', [
+            'expires'  => time() - 3600,
+            'path'     => '/',
+            'secure'   => isHttps(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        unset($_COOKIE[self::COOKIE_NOM]);
+    }
+}
