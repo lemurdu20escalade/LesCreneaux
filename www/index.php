@@ -39,6 +39,7 @@ require $appDir . '/src/FermetureRepo.php';
 require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
+require $appDir . '/src/RateLimit.php';
 
 // Compression transparente de toutes les réponses HTML : gzip/deflate
 // selon Accept-Encoding. L'app sert beaucoup de HTML répétitif (formulaires
@@ -185,6 +186,19 @@ $router->get('/jour/{id}', function (array $params) use ($appDir): void {
 $router->post('/jour/{id}/inscrire', function (array $params): void {
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    }
+    // Anti-abus, pas firewall : si l'I/O sur l'état rate-limit échoue
+    // (perm, quota disque), on log et on laisse passer l'inscription
+    // plutôt que de casser le formulaire pour tout le monde.
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    try {
+        $ipAutorisee = RateLimit::verifierInscription($ip);
+    } catch (RuntimeException $e) {
+        error_log('RateLimit dégradé (fail-open) : ' . $e->getMessage());
+        $ipAutorisee = true;
+    }
+    if (!$ipAutorisee) {
+        erreur(429, 'Trop de demandes, réessaie dans quelques minutes.'); return;
     }
     $jourId = (int)$params['id'];
     $pdo    = Database::connect(DB_PATH);
