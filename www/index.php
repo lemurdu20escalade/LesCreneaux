@@ -138,8 +138,34 @@ $router->post('/admin/login', function () use ($appDir): void {
     if (!AdminAuth::estActive()) {
         erreur(404, 'Page introuvable.'); return;
     }
-    if (!Csrf::verifierPost($_POST)) {
-        erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    // URL de retour normalisée d'abord, parce qu'on en a besoin pour
+    // re-rendre le form en cas d'échec CSRF (sinon le hidden retour
+    // disparaît à la première erreur).
+    $retour = (string)($_POST['retour'] ?? '/reglages');
+    // Limite l'URL de retour aux chemins relatifs locaux. Le check
+    // `[0] === '/'` seul laissait passer `/\evil.com` (les navigateurs
+    // normalisent en `//evil.com` sur un Location). On exige un slash
+    // suivi d'un caractère qui ne soit ni slash ni backslash.
+    if (!preg_match('#^/[^/\\\\]#', $retour)) {
+        $retour = '/reglages';
+    }
+    // Login interactif : on désactive la borne basse de 2 s. Un humain
+    // (ou son password manager) peut légitimement soumettre en < 2 s,
+    // et le rejet renvoyait sur une page d'erreur 400 hors flow login,
+    // forçant un reload-resubmit pour s'en sortir. Le rate-limit IP
+    // ci-dessous + le sleep(1) dans AdminAuth couvrent l'anti-brute.
+    $verdictCsrf = Csrf::verifierPostDetail($_POST, ['timing_min' => false]);
+    if ($verdictCsrf !== Csrf::OK) {
+        http_response_code(400);
+        $erreur = $verdictCsrf === Csrf::EXPIRE
+            ? 'Le formulaire a expiré, recharge la page et réessaie.'
+            : 'Session de connexion invalide, recharge la page et réessaie.';
+        $titre  = 'Connexion admin';
+        ob_start();
+        require $appDir . '/views/admin_login.php';
+        $contenu = ob_get_clean();
+        require $appDir . '/views/layout.php';
+        return;
     }
     $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     // Rate-limit /admin/login : sans ça un attaquant peut saturer les
@@ -149,14 +175,6 @@ $router->post('/admin/login', function () use ($appDir): void {
         erreur(429, 'Trop de tentatives, réessaie dans quelques minutes.'); return;
     }
     $password = (string)($_POST['password'] ?? '');
-    $retour   = (string)($_POST['retour']   ?? '/reglages');
-    // Limite l'URL de retour aux chemins relatifs locaux. Le check
-    // `[0] === '/'` seul laissait passer `/\evil.com` (les navigateurs
-    // normalisent en `//evil.com` sur un Location). On exige un slash
-    // suivi d'un caractère qui ne soit ni slash ni backslash.
-    if (!preg_match('#^/[^/\\\\]#', $retour)) {
-        $retour = '/reglages';
-    }
     if (AdminAuth::tenterConnexion($password)) {
         flash('Connexion admin enregistrée.');
         redirect($retour);

@@ -105,6 +105,36 @@ function runAdminAuth(): void
     $r = http('GET', '/reglages', [], ['admin_session' => $cookieAdminSession]);
     ok($r['code'] === 200, 'Auth actif — GET /reglages avec cookie valide → 200');
 
+    // Login interactif : submit en < 2 s (timing_min désactivé sur ce flow).
+    // Reproduit le password manager qui auto-fill et auto-submit avant que
+    // la borne anti-bot de 2 s soit écoulée. Avant le fix : 400 anti-spam.
+    $tokens = csrfTokens($cookieCsrf, 0);  // age = 0 s
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur', 'retour' => '/reglages'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST login submit immédiat (age=0s) → 303');
+
+    // Échec CSRF (token incohérent) : on doit re-rendre le form avec un
+    // message lisible, pas une page d'erreur 400 sèche — sinon le browser
+    // reste sur l'URL POST et le reload propose Confirm Form Resubmission.
+    $tokens = csrfTokens($cookieCsrf);
+    $tokens['_csrf'] = str_repeat('0', 64);   // token forgé, ne matche pas le cookie
+    $r = http(
+        'POST',
+        '/admin/login',
+        array_merge(['password' => 'lemur'], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 400, 'Auth actif — POST login CSRF KO → 400 (re-render)');
+    ok(
+        str_contains($r['body'], 'Connexion admin')
+            && str_contains($r['body'], 'recharge la page'),
+        'Auth actif — POST login CSRF KO → form re-rendu avec message lisible'
+    );
+
     $r = http('GET', '/admin/logout', [], ['admin_session' => $cookieAdminSession]);
     ok($r['code'] === 303, 'Auth actif — GET /admin/logout → 303');
     ok(($r['headers']['location'] ?? '') === '/', 'Auth actif — logout redirect → /');
