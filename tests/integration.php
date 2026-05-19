@@ -329,16 +329,66 @@ function supprimerDossier(string $dir): void
 }
 
 // ---------------------------------------------------------------------------
-// Tests smoke
+// Tests routes publiques
 // ---------------------------------------------------------------------------
 
-// Smoke 1 : GET / doit répondre 303 (redirect vers /mois/YYYY-MM).
-$r = http('GET', '/');
-ok($r['code'] === 303, 'GET / → 303');
+function runRoutesPubliques(): void
+{
+    $mois = '/mois/2026-05';
 
-// Smoke 2 : GET /licence doit répondre 200.
-$r = http('GET', '/licence');
-ok($r['code'] === 200, 'GET /licence → 200');
+    // Redirect racine
+    $r = http('GET', '/');
+    ok($r['code'] === 303,                              'GET / → 303');
+    ok(str_contains($r['headers']['location'] ?? '', '/mois/'), 'GET / → location contient /mois/');
+
+    // Page mois valide
+    $r = http('GET', $mois);
+    ok($r['code'] === 200,                              "GET $mois → 200");
+    ok(str_contains($r['body'], '<!doctype html'),      "GET $mois → body contient <!doctype html");
+
+    // Mois invalide
+    $r = http('GET', '/mois/abc');
+    ok($r['code'] === 404,                              'GET /mois/abc → 404');
+
+    // Jour inexistant sur base neuve
+    $r = http('GET', '/jour/1');
+    ok($r['code'] === 404,                              'GET /jour/1 → 404');
+
+    // Page licence
+    $r = http('GET', '/licence');
+    ok($r['code'] === 200,                              'GET /licence → 200');
+    ok(str_contains($r['body'], 'AGPL'),                'GET /licence → body contient AGPL');
+
+    // 404 stylé (layout HTML)
+    $r = http('GET', '/pas-existe');
+    ok($r['code'] === 404,                              'GET /pas-existe → 404');
+    ok(str_contains($r['body'], '<!doctype html'),      'GET /pas-existe → 404 avec layout HTML');
+
+    // Headers de sécurité
+    $r = http('GET', $mois);
+    ok(
+        strtolower($r['headers']['x-frame-options'] ?? '') === 'deny',
+        "GET $mois → x-frame-options: DENY"
+    );
+    ok(
+        strtolower($r['headers']['x-content-type-options'] ?? '') === 'nosniff',
+        "GET $mois → x-content-type-options: nosniff"
+    );
+    ok(
+        str_contains($r['headers']['content-security-policy'] ?? '', 'default-src'),
+        "GET $mois → CSP contient default-src"
+    );
+
+    // ETag / 304
+    $r1   = http('GET', $mois);
+    $etag = $r1['headers']['etag'] ?? '';
+    ok($etag !== '', "GET $mois → etag présent");
+
+    $r2 = http('GET', $mois, [], [], ['If-None-Match' => $etag]);
+    ok($r2['code'] === 304, "GET $mois avec If-None-Match → 304");
+}
+
+runRoutesPubliques();
 
 // ---------------------------------------------------------------------------
 // Récap final
