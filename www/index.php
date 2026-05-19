@@ -14,7 +14,10 @@ if (PHP_SAPI === 'cli-server') {
 
 $appDir = dirname(__DIR__) . '/app';
 
-require $appDir . '/config.php';
+// APP_CONFIG_OVERRIDE permet aux tests d'injecter une config jetable
+// sans toucher à app/config.php. En prod la variable n'est pas définie.
+$configFile = getenv('APP_CONFIG_OVERRIDE') ?: $appDir . '/config.php';
+require $configFile;
 
 // Défauts d'instance (nom d'asso, logo) : config.php peut les surcharger via
 // `const`. Si l'install est antérieure à l'ajout de ces constantes, on
