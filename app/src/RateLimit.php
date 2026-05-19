@@ -182,6 +182,9 @@ final class RateLimit
      * vue une seule fois reste dans le fichier indéfiniment — combiné
      * avec une rotation d'IP, le fichier grossit linéairement et plombe
      * chaque écriture sous flock.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, list<int>>
      */
     private static function purgerGlobal(array $data, int $now): array
     {
@@ -202,6 +205,7 @@ final class RateLimit
         return $out;
     }
 
+    /** @param list<int> $timestamps */
     private static function compterBurst(array $timestamps, int $now): int
     {
         $limite = $now - self::BURST_WINDOW_SECONDS;
@@ -234,17 +238,19 @@ final class RateLimit
         fclose($fh);
     }
 
+    /** @return array<string, mixed> */
     private static function lireDonnees(mixed $fh): array
     {
         rewind($fh);
         $raw = stream_get_contents($fh);
-        if ($raw === false || $raw === '') {
+        if (!is_string($raw) || $raw === '') {
             return [];
         }
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
     }
 
+    /** @param array<string, mixed> $data */
     private static function ecrireDonnees(mixed $fh, array $data): void
     {
         $json = json_encode($data, JSON_UNESCAPED_UNICODE);
