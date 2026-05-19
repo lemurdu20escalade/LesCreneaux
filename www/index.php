@@ -40,6 +40,7 @@ require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
 require $appDir . '/src/RateLimit.php';
+require $appDir . '/src/AdminAuth.php';
 
 // Compression transparente de toutes les réponses HTML : gzip/deflate
 // selon Accept-Encoding. L'app sert beaucoup de HTML répétitif (formulaires
@@ -112,6 +113,66 @@ $router->get('/licence', function () use ($appDir): void {
     require $appDir . '/views/licence.php';
     $contenu = ob_get_clean();
     require $appDir . '/views/layout.php';
+});
+
+$router->get('/admin/login', function () use ($appDir): void {
+    if (!AdminAuth::estActive()) {
+        erreur(404, 'Page introuvable.'); return;
+    }
+    if (AdminAuth::connecte()) {
+        redirect('/reglages');
+    }
+    $erreur = null;
+    $retour = (string)($_GET['retour'] ?? '/reglages');
+    $titre  = 'Connexion admin';
+    ob_start();
+    require $appDir . '/views/admin_login.php';
+    $contenu = ob_get_clean();
+    require $appDir . '/views/layout.php';
+});
+
+$router->post('/admin/login', function () use ($appDir): void {
+    if (!AdminAuth::estActive()) {
+        erreur(404, 'Page introuvable.'); return;
+    }
+    if (!Csrf::verifierPost($_POST)) {
+        erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    }
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    // Rate-limit /admin/login : sans ça un attaquant peut saturer les
+    // workers PHP-FPM avec des tentatives parallèles, chaque échec
+    // bloquant un worker via sleep(1) côté AdminAuth.
+    if (class_exists('RateLimit') && !RateLimit::verifierEchecLogin($ip)) {
+        erreur(429, 'Trop de tentatives, réessaie dans quelques minutes.'); return;
+    }
+    $password = (string)($_POST['password'] ?? '');
+    $retour   = (string)($_POST['retour']   ?? '/reglages');
+    // Limite l'URL de retour aux chemins relatifs locaux. Le check
+    // `[0] === '/'` seul laissait passer `/\evil.com` (les navigateurs
+    // normalisent en `//evil.com` sur un Location). On exige un slash
+    // suivi d'un caractère qui ne soit ni slash ni backslash.
+    if (!preg_match('#^/[^/\\\\]#', $retour)) {
+        $retour = '/reglages';
+    }
+    if (AdminAuth::tenterConnexion($password)) {
+        flash('Connexion admin enregistrée.');
+        redirect($retour);
+    }
+    if (class_exists('RateLimit')) {
+        RateLimit::compterEchecLogin($ip);
+    }
+    $erreur = 'Mot de passe incorrect.';
+    $titre  = 'Connexion admin';
+    ob_start();
+    require $appDir . '/views/admin_login.php';
+    $contenu = ob_get_clean();
+    require $appDir . '/views/layout.php';
+});
+
+$router->get('/admin/logout', function (): void {
+    AdminAuth::deconnecter();
+    flash('Déconnecté·e.', 'info');
+    redirect('/');
 });
 
 $router->get('/mois/{mois}', function (array $params) use ($appDir): void {
@@ -282,6 +343,7 @@ $router->post('/jour/{id}/desinscrire', function (array $params): void {
 });
 
 $router->post('/jour/{id}/update', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -314,6 +376,7 @@ $router->post('/jour/{id}/update', function (array $params): void {
 });
 
 $router->post('/jour/{id}/supprimer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -326,6 +389,7 @@ $router->post('/jour/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/jour/{id}/referente/ajouter', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -355,6 +419,7 @@ $router->post('/jour/{id}/referente/ajouter', function (array $params): void {
 });
 
 $router->get('/reglages', function () use ($appDir): void {
+    AdminAuth::exigerConnexion();
     $pdo        = Database::connect(DB_PATH);
     $modeles    = ModeleRepo::lister($pdo);
     $labels     = LabelRepo::lister($pdo);
@@ -370,6 +435,7 @@ $router->get('/reglages', function () use ($appDir): void {
 });
 
 $router->post('/modele/ajouter', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -398,6 +464,7 @@ $router->post('/modele/ajouter', function (): void {
 });
 
 $router->post('/modele/{id}/update', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -449,6 +516,7 @@ $router->post('/modele/{id}/update', function (array $params): void {
 });
 
 $router->post('/modele/{id}/supprimer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -466,6 +534,7 @@ $router->post('/modele/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/modele/{id}/dupliquer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -479,6 +548,7 @@ $router->post('/modele/{id}/dupliquer', function (array $params): void {
 });
 
 $router->post('/label/ajouter', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -504,6 +574,7 @@ $router->post('/label/ajouter', function (): void {
 });
 
 $router->post('/label/{id}/update', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -538,6 +609,7 @@ $router->post('/label/{id}/update', function (array $params): void {
 });
 
 $router->post('/label/{id}/supprimer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -554,6 +626,7 @@ $router->post('/label/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/modele/semaine-type', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -585,6 +658,7 @@ $router->post('/modele/semaine-type', function (): void {
 });
 
 $router->post('/settings/update', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -617,6 +691,7 @@ $router->post('/settings/update', function (): void {
 });
 
 $router->post('/settings/bandeau/update', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -643,6 +718,7 @@ $router->post('/settings/bandeau/update', function (): void {
 });
 
 $router->post('/fermeture/ajouter-lot', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -686,6 +762,7 @@ $router->post('/fermeture/ajouter-lot', function (): void {
 });
 
 $router->post('/fermeture/supprimer-lot', function (): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -706,6 +783,7 @@ $router->post('/fermeture/supprimer-lot', function (): void {
 });
 
 $router->post('/fermeture/{id}/supprimer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
@@ -723,6 +801,7 @@ $router->post('/fermeture/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/referente/{id}/supprimer', function (array $params): void {
+    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
