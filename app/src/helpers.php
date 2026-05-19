@@ -210,9 +210,10 @@ function rendreDrawer(PDO $pdo, int $jourId): void
     $jour['inscriptions'] = $stmt->fetchAll();
     $labelsParJour = LabelRepo::labelsParJour($pdo, [$jourId]);
     $jour['labels'] = $labelsParJour[$jourId] ?? [];
-    $tousLabels    = LabelRepo::lister($pdo);
-    $prenomMemo    = $_COOKIE['prenom'] ?? '';
-    $inDrawer      = true;
+    $tousLabels       = LabelRepo::lister($pdo);
+    $prenomMemo       = $_COOKIE['prenom'] ?? '';
+    $desinscrireKeys  = Desinscrire::keysCourantes();
+    $inDrawer         = true;
     require dirname(__DIR__) . '/views/_detail.php';
 }
 
@@ -272,6 +273,7 @@ function erreur(int $code, string $message): void
     http_response_code($code);
     $titres = [
         400 => 'Requête invalide',
+        403 => 'Action interdite',
         404 => 'Page introuvable',
         409 => 'Conflit',
     ];

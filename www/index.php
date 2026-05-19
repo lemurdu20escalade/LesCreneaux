@@ -39,6 +39,7 @@ require $appDir . '/src/FermetureRepo.php';
 require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
+require $appDir . '/src/Desinscrire.php';
 
 // Compression transparente de toutes les réponses HTML : gzip/deflate
 // selon Accept-Encoding. L'app sert beaucoup de HTML répétitif (formulaires
@@ -170,9 +171,10 @@ $router->get('/jour/{id}', function (array $params) use ($appDir): void {
     $jour['inscriptions'] = $stmt->fetchAll();
     $labelsParJour = LabelRepo::labelsParJour($pdo, [$id]);
     $jour['labels'] = $labelsParJour[$id] ?? [];
-    $tousLabels = LabelRepo::lister($pdo);
-    $prenomMemo = $_COOKIE['prenom'] ?? '';
-    $mois       = substr((string)$jour['date'], 0, 7);
+    $tousLabels      = LabelRepo::lister($pdo);
+    $prenomMemo      = $_COOKIE['prenom'] ?? '';
+    $desinscrireKeys = Desinscrire::keysCourantes();
+    $mois            = substr((string)$jour['date'], 0, 7);
 
     $d = new DateTimeImmutable($jour['date']);
     $titre = 'Créneau du ' . DateFr::formatCourt($d);
@@ -199,8 +201,9 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
     if (mb_strlen($noteIns) > 80) {
         erreur(400, 'Note trop longue (80 caractères max).'); return;
     }
-    $estVoisine = !empty($_POST['est_voisine']);
-    InscriptionRepo::ajouter($pdo, $jourId, $nom, $estVoisine, $noteIns === '' ? null : $noteIns);
+    $estVoisine    = !empty($_POST['est_voisine']);
+    $inscriptionId = InscriptionRepo::ajouter($pdo, $jourId, $nom, $estVoisine, $noteIns === '' ? null : $noteIns);
+    Desinscrire::ajouterKey($inscriptionId);
 
     // Mémorise le prénom côté cookie (1 an). Lu uniquement côté serveur pour
     // pré-remplir le champ nom, donc HttpOnly.
@@ -230,11 +233,16 @@ $router->post('/jour/{id}/desinscrire', function (array $params): void {
     }
     $jourId        = (int)$params['id'];
     $inscriptionId = (int)($_POST['inscription_id'] ?? 0);
+    $token         = (string)($_POST['token'] ?? '');
     if ($inscriptionId <= 0) {
         erreur(400, 'Inscription invalide.'); return;
     }
+    if (!Desinscrire::verifierToken($inscriptionId, $token)) {
+        erreur(403, 'Tu ne peux désinscrire que les noms que tu as ajoutés depuis ce navigateur.'); return;
+    }
     $pdo = Database::connect(DB_PATH);
     InscriptionRepo::supprimer($pdo, $inscriptionId);
+    Desinscrire::retirerKey($inscriptionId);
 
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
         rendreDrawer($pdo, $jourId);

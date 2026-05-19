@@ -8,11 +8,12 @@ final class InscriptionRepo
 {
     public static function ajouter(
         PDO $pdo, int $jourId, string $nom, bool $estVoisine, ?string $note = null
-    ): void {
+    ): int {
         $stmt = $pdo->prepare(
             'INSERT INTO inscriptions(jour_id, nom, est_voisine, note) VALUES (?, ?, ?, ?)'
         );
         $stmt->execute([$jourId, $nom, $estVoisine ? 1 : 0, $note]);
+        return (int)$pdo->lastInsertId();
     }
 
     public static function supprimer(PDO $pdo, int $id): bool

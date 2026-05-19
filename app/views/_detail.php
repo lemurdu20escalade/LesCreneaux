@@ -22,6 +22,7 @@ $inDrawer = $inDrawer ?? false;
 $hxSwap   = $inDrawer
     ? ' hx-target="#drawer-body" hx-swap="innerHTML"'
     : '';
+$desinscrireKeys = $desinscrireKeys ?? [];
 ?>
 <article class="detail<?= $normal ? '' : ' detail--bloque' ?>" id="jour-<?= $jourId ?>">
     <header class="detail-entete">
@@ -112,6 +113,10 @@ $hxSwap   = $inDrawer
         <?php if ($nb > 0): ?>
             <ul class="liste-inscrits">
                 <?php foreach ($jour['inscriptions'] as $ins): ?>
+                    <?php
+                        $insId  = (int)$ins['id'];
+                        $monKey = $desinscrireKeys[$insId] ?? null;
+                    ?>
                     <li>
                         <span class="li-principal">
                             <strong><?= e($ins['nom']) ?></strong>
@@ -122,15 +127,18 @@ $hxSwap   = $inDrawer
                                 <span class="tag-voisine">Voisin·e</span>
                             <?php endif; ?>
                         </span>
+                        <?php if ($monKey !== null): ?>
                         <form action="/jour/<?= $jourId ?>/desinscrire" method="post" class="inline"
                               <?php if ($inDrawer): ?>hx-post="/jour/<?= $jourId ?>/desinscrire"<?= $hxSwap ?><?php endif; ?>
                               onsubmit="return confirm('Désinscrire <?= e($ins['nom']) ?> ?');">
                             <?= Csrf::champs() ?>
-                            <input type="hidden" name="inscription_id" value="<?= (int)$ins['id'] ?>">
+                            <input type="hidden" name="inscription_id" value="<?= $insId ?>">
+                            <input type="hidden" name="token" value="<?= e($monKey) ?>">
                             <button type="submit" class="btn-icone" aria-label="Désinscrire <?= e($ins['nom']) ?>">
                                 <?= icon('close', 18) ?>
                             </button>
                         </form>
+                        <?php endif; ?>
                     </li>
                 <?php endforeach; ?>
             </ul>
