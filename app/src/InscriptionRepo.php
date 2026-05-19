@@ -15,10 +15,17 @@ final class InscriptionRepo
         $stmt->execute([$jourId, $nom, $estVoisine ? 1 : 0, $note]);
     }
 
-    public static function supprimer(PDO $pdo, int $id): bool
+    /**
+     * Supprime une inscription en vérifiant qu'elle appartient bien au
+     * jour passé en URL. Sans ce filtre, un POST /jour/1/desinscrire
+     * avec un inscription_id du jour 42 supprimerait quand même : on
+     * pourrait désinscrire n'importe qui depuis n'importe quelle URL,
+     * et le rate-limit qui s'applique à l'URL deviendrait contournable.
+     */
+    public static function supprimer(PDO $pdo, int $id, int $jourId): bool
     {
-        $stmt = $pdo->prepare('DELETE FROM inscriptions WHERE id = ?');
-        $stmt->execute([$id]);
+        $stmt = $pdo->prepare('DELETE FROM inscriptions WHERE id = ? AND jour_id = ?');
+        $stmt->execute([$id, $jourId]);
         return $stmt->rowCount() > 0;
     }
 

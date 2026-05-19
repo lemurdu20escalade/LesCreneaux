@@ -39,6 +39,7 @@ require $appDir . '/src/FermetureRepo.php';
 require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
+require $appDir . '/src/RateLimit.php';
 require $appDir . '/src/AdminAuth.php';
 
 // Compression transparente de toutes les réponses HTML : gzip/deflate
@@ -244,8 +245,25 @@ $router->get('/jour/{id}', function (array $params) use ($appDir): void {
 });
 
 $router->post('/jour/{id}/inscrire', function (array $params): void {
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (!Csrf::verifierPost($_POST)) {
+        // On compte les erreurs CSRF dans un compteur séparé du rate-
+        // limit : sans ce suivi, un flood de POST mal signés ne touche
+        // pas le quota d'inscription et passe sous le radar.
+        RateLimit::compterErreurCsrf($ip);
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    }
+    // Anti-abus, pas firewall : si l'I/O sur l'état rate-limit échoue
+    // (perm, quota disque), on log et on laisse passer l'inscription
+    // plutôt que de casser le formulaire pour tout le monde.
+    try {
+        $ipAutorisee = RateLimit::verifierInscription($ip);
+    } catch (RuntimeException $e) {
+        error_log('RateLimit dégradé (fail-open) : ' . $e->getMessage());
+        $ipAutorisee = true;
+    }
+    if (!$ipAutorisee) {
+        erreur(429, 'Trop de demandes, réessaie dans quelques minutes.'); return;
     }
     $jourId = (int)$params['id'];
     $pdo    = Database::connect(DB_PATH);
@@ -286,8 +304,21 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
 });
 
 $router->post('/jour/{id}/desinscrire', function (array $params): void {
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (!Csrf::verifierPost($_POST)) {
+        RateLimit::compterErreurCsrf($ip);
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    }
+    // Limite anti-vandalisme : la désinscription reste ouverte à tou·tes
+    // mais on coupe net une rafale qui chercherait à vider un créneau.
+    try {
+        $autorisee = RateLimit::verifierDesinscription($ip);
+    } catch (RuntimeException $e) {
+        error_log('RateLimit desinscr dégradé (fail-open) : ' . $e->getMessage());
+        $autorisee = true;
+    }
+    if (!$autorisee) {
+        erreur(429, 'Trop de désinscriptions en peu de temps, réessaie dans quelques minutes.'); return;
     }
     $jourId        = (int)$params['id'];
     $inscriptionId = (int)($_POST['inscription_id'] ?? 0);
@@ -295,7 +326,12 @@ $router->post('/jour/{id}/desinscrire', function (array $params): void {
         erreur(400, 'Inscription invalide.'); return;
     }
     $pdo = Database::connect(DB_PATH);
-    InscriptionRepo::supprimer($pdo, $inscriptionId);
+    // jour_id obligatoire dans le WHERE : sans ça, un POST sur
+    // /jour/X/desinscrire pourrait supprimer une inscription d'un autre
+    // jour, et le rate-limit qui s'applique à l'URL deviendrait inutile.
+    if (!InscriptionRepo::supprimer($pdo, $inscriptionId, $jourId)) {
+        erreur(404, 'Inscription introuvable sur ce créneau.'); return;
+    }
 
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
         rendreDrawer($pdo, $jourId);
