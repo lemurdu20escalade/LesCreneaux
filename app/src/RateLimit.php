@@ -268,7 +268,14 @@ final class RateLimit
     {
         error_log('RateLimit : ' . $resume);
 
-        if (!defined('DISCORD_WEBHOOK_URL') || DISCORD_WEBHOOK_URL === '') {
+        // constant() retourne mixed, ce qui empêche PHPStan d'inférer
+        // depuis la valeur '' du bootstrap config.example que cette
+        // comparaison est toujours vraie.
+        if (!defined('DISCORD_WEBHOOK_URL')) {
+            return;
+        }
+        $webhook = (string) constant('DISCORD_WEBHOOK_URL');
+        if ($webhook === '') {
             return;
         }
         if (function_exists('fastcgi_finish_request')) {
@@ -282,7 +289,7 @@ final class RateLimit
             ['content' => $content],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         );
-        $ch = curl_init(DISCORD_WEBHOOK_URL);
+        $ch = curl_init($webhook);
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
             CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
