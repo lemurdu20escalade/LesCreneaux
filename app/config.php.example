@@ -27,6 +27,14 @@ const SSE_ENABLED = false;
 // Vide = désactivé. Créer via Paramètres du salon → Intégrations → Webhooks.
 const DISCORD_WEBHOOK_URL = '';
 
+// Mot de passe admin (hash) pour protéger les routes de configuration :
+// /reglages, modification/suppression de créneau, gestion des modèles,
+// étiquettes, fermetures, bandeau d'accueil, identité de l'asso.
+// Vide = aucune protection — n'importe quelle visite peut tout effacer.
+// FORTEMENT recommandé en prod publique. Générer le hash :
+//   php -r "echo password_hash('mot-de-passe-clair', PASSWORD_DEFAULT);"
+const ADMIN_PASSWORD_HASH = '';
+
 // --- Customisation d'instance (surchargeable sans toucher au repo public) ---
 // Ces valeurs sont les DÉFAUTS affichés tant que l'admin n'a rien réglé via
 // /reglages. Une fois un réglage posé dans la carte « Identité de l'asso »,
