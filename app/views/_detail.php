@@ -178,7 +178,6 @@ $hxSwap   = $inDrawer
         <?php endif; ?>
     </section>
 
-    <?php if (!AdminAuth::estActive() || AdminAuth::connecte()): ?>
     <details class="bloc-edition">
         <summary><?= icon('edit', 16) ?><span>Modifier ce créneau</span></summary>
         <form action="/jour/<?= $jourId ?>/update" method="post" class="form-edit">
@@ -220,11 +219,12 @@ $hxSwap   = $inDrawer
             <button type="submit" class="btn btn--filled">Enregistrer</button>
         </form>
 
+        <?php if (!AdminAuth::estActive() || AdminAuth::connecte()): ?>
         <form action="/jour/<?= $jourId ?>/supprimer" method="post"
               onsubmit="return confirm('Supprimer le créneau du <?= e(DateFr::formatCourt($d)) ?> ?');">
             <?= Csrf::champs() ?>
             <button type="submit" class="btn btn--danger">Supprimer ce créneau</button>
         </form>
+        <?php endif; ?>
     </details>
-    <?php endif; ?>
 </article>

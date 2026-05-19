@@ -145,13 +145,13 @@ function runAdminAuth(): void
     $idJourRef = (int)$pdoRef->lastInsertId();
     unset($pdoRef);
 
-    // GET détail d'un jour SANS cookie admin : la vue ne doit PAS afficher
-    // les formulaires admin (édition créneau, suppression créneau). Le
-    // visiteur garde ses actions publiques (inscription, ajout référent·e).
+    // GET détail d'un jour SANS cookie admin : la vue affiche les formulaires
+    // d'édition (heures/étiquettes/limite/note) — action publique. Seule la
+    // suppression du créneau reste cachée (anti-vandalisme).
     $rDetail = http('GET', "/jour/$idJourRef", [], ['csrf_session' => $cookieCsrf]);
     ok(
-        !str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/update"'),
-        'Auth actif — vue détail SANS admin ne contient pas le form /update'
+        str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/update"'),
+        'Auth actif — vue détail SANS admin contient le form /update (édition publique)'
     );
     ok(
         !str_contains($rDetail['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
@@ -171,6 +171,39 @@ function runAdminAuth(): void
         str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/update"')
             && str_contains($rDetailAdmin['body'], 'action="/jour/' . $idJourRef . '/supprimer"'),
         'Auth actif — vue détail AVEC admin contient bien /update et /supprimer'
+    );
+
+    // POST /jour/{id}/update : action publique en mode auth actif.
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/jour/$idJourRef/update",
+        array_merge([
+            'heure_debut' => '19:00',
+            'heure_fin'   => '22:00',
+            'capacite'    => 50,
+            'note'        => 'modifié sans login',
+        ], $tokens),
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok($r['code'] === 303, 'Auth actif — POST /jour/{id}/update SANS admin → 303 (public)');
+    ok(
+        !str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST /jour/{id}/update SANS admin → pas de redirect login'
+    );
+
+    // POST /jour/{id}/supprimer : reste admin-only.
+    $tokens = csrfTokens($cookieCsrf);
+    $r = http(
+        'POST',
+        "/jour/$idJourRef/supprimer",
+        $tokens,
+        ['csrf_session' => $cookieCsrf]
+    );
+    ok(
+        $r['code'] === 303
+            && str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST /jour/{id}/supprimer SANS admin → redirect vers /admin/login'
     );
 
     $tokens = csrfTokens($cookieCsrf);
