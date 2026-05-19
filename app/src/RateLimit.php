@@ -30,6 +30,13 @@ final class RateLimit
     private const PREFIXE_ERREUR_CSRF  = 'csrf:';
     private const SEUIL_ERREURS_CSRF   = 50;
 
+    // Désinscriptions : la friction zéro est l'esprit du projet (un·e
+    // référent·e peut nettoyer un créneau avant la séance). On laisse
+    // donc une marge large, juste assez pour couper net un vandalisme
+    // massif (effacer un mois entier = 45+ désinscriptions).
+    private const PREFIXE_DESINSCR      = 'desinscr:';
+    private const LIMITE_DESINSCRIPTION = 30;
+
     /**
      * True si l'IP peut s'inscrire, false si la limite est atteinte.
      * Enregistre l'événement uniquement quand l'accès est autorisé.
@@ -71,6 +78,39 @@ final class RateLimit
             ));
         }
 
+        return true;
+    }
+
+    /**
+     * True si l'IP peut désinscrire, false si la limite est atteinte.
+     * Pas de burst Discord : la désinscription est anonyme par design et
+     * un usage normal peut atteindre quelques actions rapides (référent·e
+     * qui nettoie un créneau avant la séance) — l'alerte serait du bruit.
+     * Le 429 reste, et data/rate-limit.json garde la trace.
+     */
+    public static function verifierDesinscription(string $ip): bool
+    {
+        if ($ip === '') {
+            return true;
+        }
+        $ip   = self::normaliserIp($ip);
+        $path = DATA_DIR . '/rate-limit.json';
+        $fh   = self::ouvrirVerrouille($path);
+
+        $now        = time();
+        $data       = self::purgerGlobal(self::lireDonnees($fh), $now);
+        $cle        = self::PREFIXE_DESINSCR . $ip;
+        $timestamps = $data[$cle] ?? [];
+
+        if (count($timestamps) >= self::LIMITE_DESINSCRIPTION) {
+            self::libererEtFermer($fh);
+            return false;
+        }
+
+        $timestamps[] = $now;
+        $data[$cle]   = $timestamps;
+        self::ecrireDonnees($fh, $data);
+        self::libererEtFermer($fh);
         return true;
     }
 

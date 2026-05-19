@@ -243,8 +243,21 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
 });
 
 $router->post('/jour/{id}/desinscrire', function (array $params): void {
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
     if (!Csrf::verifierPost($_POST)) {
+        RateLimit::compterErreurCsrf($ip);
         erreur(400, 'Requête refusée (protection anti-spam).'); return;
+    }
+    // Limite anti-vandalisme : la désinscription reste ouverte à tou·tes
+    // mais on coupe net une rafale qui chercherait à vider un créneau.
+    try {
+        $autorisee = RateLimit::verifierDesinscription($ip);
+    } catch (RuntimeException $e) {
+        error_log('RateLimit desinscr dégradé (fail-open) : ' . $e->getMessage());
+        $autorisee = true;
+    }
+    if (!$autorisee) {
+        erreur(429, 'Trop de désinscriptions en peu de temps, réessaie dans quelques minutes.'); return;
     }
     $jourId        = (int)$params['id'];
     $inscriptionId = (int)($_POST['inscription_id'] ?? 0);
