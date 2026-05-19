@@ -853,16 +853,31 @@ function redemarrerServeur(string $nouvelleValeurHash): void
 {
     global $serverProc, $configPath, $port, $wwwDir, $baseUrl;
 
-    $status = proc_get_status($serverProc);
-    if ($status['running'] ?? false) {
+    // Tuer puis attendre la mort effective du process : sans ce poll
+    // explicite, sur certains runners CI le nouveau php -S peut tenter
+    // de bind sur un port encore occupé par l'ancien.
+    if (proc_get_status($serverProc)['running'] ?? false) {
         proc_terminate($serverProc);
+    }
+    $deadlineKill = microtime(true) + 3.0;
+    while (microtime(true) < $deadlineKill) {
+        if (!(proc_get_status($serverProc)['running'] ?? false)) {
+            break;
+        }
+        usleep(50_000);
     }
     proc_close($serverProc);
 
-    // Petit délai pour laisser l'OS libérer le port.
-    usleep(300_000);
+    // Choisir un nouveau port à chaque redémarrage : évite les TIME_WAIT
+    // sur Linux et la pollution de $http_response_header entre runs.
+    $sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+    socket_bind($sock, '127.0.0.1', 0);
+    socket_getsockname($sock, $addr, $portLibre);
+    socket_close($sock);
+    $port    = (int)$portLibre;
+    $baseUrl = "http://127.0.0.1:$port";
 
-    // Remplace la valeur de ADMIN_PASSWORD_HASH sans passer par preg_replace :
+    // Remplace la valeur de ADMIN_PASSWORD_HASH via preg_replace_callback :
     // le hash bcrypt contient des '$' que preg_replace interpréterait comme
     // des backreferences dans la chaîne de remplacement.
     if ($nouvelleValeurHash !== '') {
@@ -895,20 +910,25 @@ function redemarrerServeur(string $nouvelleValeurHash): void
         exit(1);
     }
 
+    // Poll readiness — variable locale pour ne pas hériter d'une
+    // $http_response_header laissée par un appel précédent.
     $pret     = false;
     $deadline = microtime(true) + 5.0;
     while (microtime(true) < $deadline) {
-        $ctx   = stream_context_create(['http' => [
+        $ctx = stream_context_create(['http' => [
             'method'          => 'GET',
             'ignore_errors'   => true,
             'timeout'         => 0.5,
             'follow_location' => 0,
         ]]);
         $probe = @file_get_contents("$baseUrl/", false, $ctx);
-        if ($probe !== false || !empty($http_response_header)) {
+        if ($probe !== false) {
             $pret = true;
             break;
         }
+        // Une connexion refusée laisse $probe à false ET ne touche
+        // pas $http_response_header — on attend donc strictement un
+        // body non-false.
         usleep(100_000);
     }
     if (!$pret) {
