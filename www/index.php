@@ -316,6 +316,7 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
     $_COOKIE['prenom'] = $nom;
 
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
+        header('HX-Trigger: rafraichir-mois');
         rendreDrawer($pdo, $jourId);
         return;
     }
@@ -355,6 +356,7 @@ $router->post('/jour/{id}/desinscrire', function (array $params): void {
     }
 
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
+        header('HX-Trigger: rafraichir-mois');
         rendreDrawer($pdo, $jourId);
         return;
     }
@@ -431,6 +433,7 @@ $router->post('/jour/{id}/referente/ajouter', function (array $params): void {
     }
     ReferenteRepo::ajouter($pdo, $jourId, $nom, $hd, $hf);
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
+        header('HX-Trigger: rafraichir-mois');
         rendreDrawer($pdo, $jourId);
         return;
     }
@@ -834,6 +837,7 @@ $router->post('/referente/{id}/supprimer', function (array $params): void {
     }
     ReferenteRepo::supprimer($pdo, $id);
     if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === 'true') {
+        header('HX-Trigger: rafraichir-mois');
         rendreDrawer($pdo, $jourId);
         return;
     }

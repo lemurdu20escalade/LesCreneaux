@@ -110,6 +110,12 @@ $logoUrl = setting(SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
         drawer.addEventListener('click', function (e) {
             if (e.target === drawer) drawer.close();
         });
+
+        // Refetch du mois à la fermeture du drawer pour combler le délai 0-60 s
+        // du polling. L'ETag renvoie 304 si rien n'a changé.
+        drawer.addEventListener('close', function () {
+            if (window.htmx) window.htmx.trigger(document.body, 'rafraichir-mois');
+        });
     })();
     </script>
 </body>

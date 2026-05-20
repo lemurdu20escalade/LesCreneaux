@@ -54,7 +54,7 @@ $moisNext  = DateFr::moisNom((int)$debutMois->modify('+1 month')->format('n'));
 <?php else: ?>
     <section id="liste-jours"
              hx-get="/mois/<?= e($mois) ?>"
-             hx-trigger="every 60s"
+             hx-trigger="every 60s, rafraichir-mois from:body"
              hx-select="#liste-jours"
              hx-swap="outerHTML">
         <?php
