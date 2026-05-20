@@ -37,5 +37,3 @@ $retour = $retour ?? '/reglages';
     </label>
     <button type="submit" class="btn btn--filled btn--large">Se connecter</button>
 </form>
-
-<p class="retour"><a href="/">← Retour au calendrier</a></p>
