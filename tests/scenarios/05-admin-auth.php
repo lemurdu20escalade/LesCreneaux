@@ -135,9 +135,11 @@ function runAdminAuth(): void
         'Auth actif — POST login CSRF KO → form re-rendu avec message lisible'
     );
 
-    // Ajout d'un·e référent·e : action publique, doit fonctionner SANS cookie
-    // admin même en mode auth actif. La suppression reste admin (anti-vandalisme :
-    // retirer la référent·e d'un autre).
+    // Ajout et suppression d'un·e référent·e : actions publiques en mode auth
+    // actif. Cohérent avec inscriptions/désinscriptions grimpeurs qui sont
+    // déjà ouvertes : un·e référent·e qui s'est trompé·e doit pouvoir se
+    // corriger sans attendre un·e admin. CSRF + rate-limit + backup quotidien
+    // couvrent le risque d'abus.
     $pdoRef = dbConnect();
     $pdoRef->prepare(
         "INSERT INTO jours (date, heure_debut, heure_fin, capacite) VALUES (?, ?, ?, ?)"
@@ -223,7 +225,7 @@ function runAdminAuth(): void
     $stmtRef->execute(['TestRef', $idJourRef]);
     ok((int)$stmtRef->fetchColumn() === 1, 'Auth actif — référent·e bien enregistré·e en DB');
 
-    // Suppression : doit rester admin-only.
+    // Suppression : action publique aussi.
     $idRef = (int)dbConnect()->query("SELECT id FROM referentes WHERE nom='TestRef'")->fetchColumn();
     $tokens = csrfTokens($cookieCsrf);
     $r = http(
@@ -232,11 +234,14 @@ function runAdminAuth(): void
         $tokens,
         ['csrf_session' => $cookieCsrf]
     );
-    ok($r['code'] === 303, 'Auth actif — POST referente/supprimer SANS admin → 303');
+    ok($r['code'] === 303, 'Auth actif — POST referente/supprimer SANS admin → 303 (public)');
     ok(
-        str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
-        'Auth actif — POST referente/supprimer SANS admin → redirect vers /admin/login'
+        !str_starts_with($r['headers']['location'] ?? '', '/admin/login'),
+        'Auth actif — POST referente/supprimer SANS admin → pas de redirect login'
     );
+    $stmtRefDel = dbConnect()->prepare('SELECT COUNT(*) FROM referentes WHERE id = ?');
+    $stmtRefDel->execute([$idRef]);
+    ok((int)$stmtRefDel->fetchColumn() === 0, 'Auth actif — référent·e bien supprimé·e de la DB');
 
     $r = http('GET', '/admin/logout', [], ['admin_session' => $cookieAdminSession]);
     ok($r['code'] === 303, 'Auth actif — GET /admin/logout → 303');

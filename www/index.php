@@ -829,7 +829,6 @@ $router->post('/fermeture/{id}/supprimer', function (array $params): void {
 });
 
 $router->post('/referente/{id}/supprimer', function (array $params): void {
-    AdminAuth::exigerConnexion();
     if (!Csrf::verifierPost($_POST)) {
         erreur(400, 'Requête refusée.'); return;
     }
