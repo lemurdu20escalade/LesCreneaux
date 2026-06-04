@@ -594,6 +594,23 @@ main.container {
     font-size: 14px;
 }
 
+/* Bannière affichée sur un mois passé (vieux lien partagé). */
+.bandeau-mois-passe {
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--warning-soft);
+    color: var(--warning);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--sp-3);
+    font-size: 14px;
+}
+.bandeau-mois-passe a {
+    color: inherit;
+    font-weight: 600;
+    /* Le reset global retire le souligné des liens ; ici la couleur est
+       héritée du fond warning, le souligné reste le seul indicateur. */
+    text-decoration: underline;
+}
+
 /* Flash éphémère posé après un POST, affiché une fois dans layout.php. */
 .flash {
     padding: var(--sp-3) var(--sp-4);

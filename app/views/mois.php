@@ -8,6 +8,12 @@ $moisPrev  = DateFr::moisNom((int)$debutMois->modify('-1 month')->format('n'));
 $moisCour  = DateFr::moisNom((int)$debutMois->format('n'));
 $moisNext  = DateFr::moisNom((int)$debutMois->modify('+1 month')->format('n'));
 ?>
+<?php if ($moisPasse): ?>
+    <p class="bandeau-mois-passe">
+        Tu consultes un mois passé.
+        <a href="/">Revenir au mois en cours</a>
+    </p>
+<?php endif; ?>
 <?php if (!empty($bandeauHtml)): ?>
     <details class="bandeau" id="bandeau" open>
         <summary class="bandeau-summary">

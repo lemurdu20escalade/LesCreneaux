@@ -106,8 +106,52 @@ function redirect(string $url, ?string $action = null, array $ctx = []): void
 
 $router = new Router();
 
-$router->get('/', function (): void {
-    redirect('/mois/' . (new DateTimeImmutable('now'))->format('Y-m'));
+// Une seule horloge par requête : si la route `/` et la vue calculaient
+// chacune « maintenant », un passage de minuit le 1er du mois entre les
+// deux afficherait la bannière « mois passé » sur le mois courant.
+$moisCourant = (new DateTimeImmutable('now'))->format('Y-m');
+
+// Rendu d'un mois, partagé entre `/` et `/mois/{mois}`. Le mois est
+// supposé déjà validé (format YYYY-MM).
+$rendreMois = function (string $mois) use ($appDir, $moisCourant): void {
+    $pdo = Database::connect(DB_PATH);
+    MoisGenerator::genererSiVide($pdo, $mois);
+
+    // ETag pour le polling htmx : 304 si rien n'a changé. Le mois rendu
+    // fait partie du hash : `/` change de contenu au passage du mois
+    // même à DB inchangée (mois suivant sans modèles actifs), l'ETag
+    // doit identifier la représentation, pas seulement l'état de la DB.
+    $etag = '"' . md5($mois . '|' . Version::signature($pdo)) . '"';
+    header('ETag: ' . $etag);
+    header('Cache-Control: no-store');
+    if (($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) {
+        http_response_code(304);
+        return;
+    }
+
+    $jours       = MoisGenerator::listerJoursAvecDetails($pdo, $mois);
+    $fermetures  = FermetureRepo::listerMois($pdo, $mois);
+    $bandeauHtml = SettingsRepo::get($pdo, SettingsRepo::CLE_BANDEAU_HTML, '');
+    $prenomMemo  = $_COOKIE['prenom'] ?? '';
+    // Comparaison lexicographique valide sur YYYY-MM. Couvre les vieux
+    // liens /mois/YYYY-MM qui circulent encore dans les conversations.
+    $moisPasse   = $mois < $moisCourant;
+
+    $titre     = 'Créneaux — ' . $mois;
+    $needsHtmx = true; // polling htmx + drawer opener via window.htmx.ajax
+    ob_start();
+    require $appDir . '/views/mois.php';
+    $contenu = ob_get_clean();
+    require $appDir . '/views/layout.php';
+};
+
+$router->get('/', function () use ($rendreMois, $moisCourant): void {
+    // Pas de redirect vers /mois/YYYY-MM : l'URL copiée depuis la barre
+    // d'adresse doit rester `/` pour pointer en permanence sur le mois
+    // courant. Le 303 gelait le mois dans les liens partagés par les
+    // adhérent·es, qui renvoyaient au mauvais mois quelques semaines
+    // plus tard.
+    $rendreMois($moisCourant);
 });
 
 $router->get('/licence', function () use ($appDir): void {
@@ -196,35 +240,12 @@ $router->get('/admin/logout', function (): void {
     redirect('/');
 });
 
-$router->get('/mois/{mois}', function (array $params) use ($appDir): void {
+$router->get('/mois/{mois}', function (array $params) use ($rendreMois): void {
     $mois = $params['mois'];
     if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $mois)) {
         erreur(404, 'Mois invalide.'); return;
     }
-
-    $pdo = Database::connect(DB_PATH);
-    MoisGenerator::genererSiVide($pdo, $mois);
-
-    // ETag pour le polling htmx : 304 si la DB n'a pas changé.
-    $etag = Version::etag($pdo);
-    header('ETag: ' . $etag);
-    header('Cache-Control: no-store');
-    if (($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === $etag) {
-        http_response_code(304);
-        return;
-    }
-
-    $jours       = MoisGenerator::listerJoursAvecDetails($pdo, $mois);
-    $fermetures  = FermetureRepo::listerMois($pdo, $mois);
-    $bandeauHtml = SettingsRepo::get($pdo, SettingsRepo::CLE_BANDEAU_HTML, '');
-    $prenomMemo  = $_COOKIE['prenom'] ?? '';
-
-    $titre     = 'Créneaux — ' . $mois;
-    $needsHtmx = true; // polling htmx + drawer opener via window.htmx.ajax
-    ob_start();
-    require $appDir . '/views/mois.php';
-    $contenu = ob_get_clean();
-    require $appDir . '/views/layout.php';
+    $rendreMois($mois);
 });
 
 $router->get('/jour/{id}', function (array $params) use ($appDir): void {
