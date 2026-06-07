@@ -11,6 +11,10 @@ includes:
 
 parameters:
     level: 6
+    # Cible PHP du projet (.php-version, job phpstan de la CI). Sans ce
+    # pin, l'analyse suit la version du PHP local : une baseline
+    # régénérée sur une machine plus récente peut diverger de la CI.
+    phpVersion: 80200
     paths:
         - app
         - www

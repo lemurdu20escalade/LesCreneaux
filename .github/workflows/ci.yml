@@ -82,10 +82,10 @@ jobs:
             sleep 0.5
           done
 
-      - name: GET / redirige vers /mois/YYYY-MM
+      - name: GET / rend le mois courant (200, pas de redirect)
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/)
-          test "$code" = "303" || (echo "attendu 303, reçu $code" && exit 1)
+          test "$code" = "200" || (echo "attendu 200, reçu $code" && exit 1)
 
       - name: GET /mois/2026-04 répond 200
         run: |
