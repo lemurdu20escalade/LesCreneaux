@@ -2,20 +2,37 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 declare(strict_types=1);
 
-// Routes publiques : redirect racine, page mois, 404 stylé, headers de
-// sécurité, ETag/304. Aucun effet de bord sur la DB.
+// Routes publiques : racine = mois courant, page mois, bannière mois
+// passé, 404 stylé, headers de sécurité, ETag/304. Aucun effet de bord
+// sur la DB.
 
 function runRoutesPubliques(): void
 {
     $mois = '/mois/2026-05';
 
+    // La racine rend le mois courant sans redirect : l'URL partagée
+    // reste `/` et ne gèle pas un mois dans le lien. On identifie le mois
+    // courant par la nav (liens vers les mois adjacents), indépendamment du
+    // titre de page (qui affiche le nom de l'asso, pas le mois).
+    $base     = new DateTimeImmutable('first day of this month');
+    $moisPrev = $base->modify('-1 month')->format('Y-m');
+    $moisNext = $base->modify('+1 month')->format('Y-m');
     $r = http('GET', '/');
-    ok($r['code'] === 303,                              'GET / → 303');
-    ok(str_contains($r['headers']['location'] ?? '', '/mois/'), 'GET / → location contient /mois/');
+    ok($r['code'] === 200,                              'GET / → 200 (pas de redirect)');
+    ok(str_contains($r['body'], '<!doctype html'),      'GET / → body contient <!doctype html');
+    ok(str_contains($r['body'], '/mois/' . $moisPrev)
+       && str_contains($r['body'], '/mois/' . $moisNext), 'GET / → affiche le mois courant (nav adjacente)');
+    ok(!str_contains($r['body'], 'bandeau-mois-passe'), 'GET / → pas de bannière mois passé');
 
     $r = http('GET', $mois);
     ok($r['code'] === 200,                              "GET $mois → 200");
     ok(str_contains($r['body'], '<!doctype html'),      "GET $mois → body contient <!doctype html");
+
+    // Un mois antérieur au mois courant affiche la bannière de retour.
+    $moisPasse = (new DateTimeImmutable('first day of this month'))
+        ->modify('-1 month')->format('Y-m');
+    $r = http('GET', '/mois/' . $moisPasse);
+    ok(str_contains($r['body'], 'bandeau-mois-passe'),  "GET /mois/$moisPasse → bannière mois passé");
 
     $r = http('GET', '/mois/abc');
     ok($r['code'] === 404,                              'GET /mois/abc → 404');

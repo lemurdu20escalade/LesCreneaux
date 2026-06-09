@@ -277,6 +277,12 @@ parameters:
 			path: app/views/mois.php
 
 		-
+			message: '#^Variable \$moisPasse might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/views/mois.php
+
+		-
 			message: '#^Variable \$assoLogo might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
