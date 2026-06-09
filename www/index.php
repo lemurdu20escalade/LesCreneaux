@@ -219,7 +219,7 @@ $router->get('/mois/{mois}', function (array $params) use ($appDir): void {
     $bandeauHtml = SettingsRepo::get($pdo, SettingsRepo::CLE_BANDEAU_HTML, '');
     $prenomMemo  = $_COOKIE['prenom'] ?? '';
 
-    $titre     = 'Créneaux — ' . $mois;
+    $titre     = 'Créneaux — ' . setting(SettingsRepo::CLE_ASSO_NOM, ASSO_NOM_DEFAUT);
     $needsHtmx = true; // polling htmx + drawer opener via window.htmx.ajax
     ob_start();
     require $appDir . '/views/mois.php';
