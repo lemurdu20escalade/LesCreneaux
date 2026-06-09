@@ -216,8 +216,8 @@ $hxSwap   = $inDrawer
                 <input type="number" name="capacite" min="1" max="500" value="<?= $cap ?>" required>
             </label>
             <label class="field">
-                <span class="field-label">Note</span>
-                <input type="text" name="note" maxlength="500" value="<?= e($jour['note'] ?? '') ?>" placeholder="ex. niveau débutant">
+                <span class="field-label">Note <span class="meta">(les retours à la ligne sont conservés)</span></span>
+                <textarea name="note" maxlength="500" rows="3" placeholder="ex. niveau débutant"><?= e($jour['note'] ?? '') ?></textarea>
             </label>
             <button type="submit" class="btn btn--filled">Enregistrer</button>
         </form>

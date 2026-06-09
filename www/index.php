@@ -382,7 +382,7 @@ $router->post('/jour/{id}/update', function (array $params): void {
     if ($cap < 1 || $cap > 500) {
         erreur(400, 'Capacité invalide (1 à 500).'); return;
     }
-    $note = trim((string)($_POST['note'] ?? ''));
+    $note = normaliserSauts(trim((string)($_POST['note'] ?? '')));
     if (mb_strlen($note) > 500) {
         erreur(400, 'Note trop longue.'); return;
     }
@@ -474,7 +474,7 @@ $router->post('/modele/ajouter', function (): void {
     if ($js < 1 || $js > 7 || $hd === null || $hf === null || $hd >= $hf || $cap < 1 || $cap > 500) {
         erreur(400, 'Données invalides.'); return;
     }
-    $note = trim((string)($_POST['note_defaut'] ?? ''));
+    $note = normaliserSauts(trim((string)($_POST['note_defaut'] ?? '')));
     if (mb_strlen($note) > 500) {
         erreur(400, 'Note trop longue.'); return;
     }
@@ -505,7 +505,7 @@ $router->post('/modele/{id}/update', function (array $params): void {
         erreur(400, 'Données invalides.'); return;
     }
     $active = !empty($_POST['active']);
-    $note = trim((string)($_POST['note_defaut'] ?? ''));
+    $note = normaliserSauts(trim((string)($_POST['note_defaut'] ?? '')));
     if (mb_strlen($note) > 500) {
         erreur(400, 'Note trop longue.'); return;
     }

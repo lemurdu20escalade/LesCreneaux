@@ -213,13 +213,19 @@ main.container {
     margin-top: -0.5px;
 }
 .c-note-jour {
+    flex-basis: 100%;
     font-size: 12px;
     color: var(--on-surface-soft);
     font-style: italic;
-    white-space: nowrap;
+    /* Note potentiellement longue (jusqu'à 500 car.) : on autorise le retour
+       à la ligne mais on plafonne à 2 lignes dans la liste condensée, le
+       drawer affiche le texte complet. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 .chip--complete  { background: var(--success-soft); color: var(--success); }
@@ -1036,6 +1042,17 @@ main.container {
     flex-wrap: wrap;
     gap: var(--sp-2);
     margin: var(--sp-3) 0 0;
+}
+.detail-note {
+    margin: var(--sp-3) 0 0;
+    color: var(--on-surface-soft);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.4;
+    /* pre-line : respecte les retours à la ligne saisis dans la note tout en
+       laissant le wrap automatique gérer les lignes trop longues. */
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 .detail-section { margin-block: var(--sp-5); }

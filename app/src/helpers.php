@@ -189,6 +189,16 @@ function parseHeure(string $s): ?string
     return sprintf('%02d:%02d', (int)$m[1], (int)$m[2]);
 }
 
+/**
+ * Normalise les fins de ligne CRLF/CR → LF. Les <textarea> soumettent du
+ * CRLF : on stocke du LF propre pour un comptage de longueur exact et un
+ * rendu sans \r résiduel. À appeler à la frontière (réception du POST).
+ */
+function normaliserSauts(string $s): string
+{
+    return str_replace(["\r\n", "\r"], "\n", $s);
+}
+
 /** Valide 'YYYY-MM-DD' avec date réelle du calendrier, sinon null. */
 function parseDate(string $s): ?string
 {

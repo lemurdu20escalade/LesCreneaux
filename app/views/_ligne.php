@@ -67,8 +67,14 @@ $rendreRef = static function (array $r) use ($hDebutJour, $hFinJour): string {
             <?php foreach ($jour['labels'] ?? [] as $l): ?>
                 <span class="chip" style="<?= e(chipStyleLabel($l['couleur'])) ?>"><?= e($l['nom']) ?></span>
             <?php endforeach; ?>
-            <?php if (!empty($jour['note'])): ?>
-                <span class="c-note-jour"><?= e($jour['note']) ?></span>
+            <?php if (!empty($jour['note'])):
+                // Aperçu condensé : seule la 1re ligne de la note (les notes
+                // multi-lignes se lisent en entier dans le drawer). « … »
+                // signale qu'il y a une suite.
+                $lignesNote = explode("\n", $jour['note']);
+                $apercuNote = $lignesNote[0] . (count($lignesNote) > 1 ? ' …' : '');
+            ?>
+                <span class="c-note-jour"><?= e($apercuNote) ?></span>
             <?php endif; ?>
         </span>
 

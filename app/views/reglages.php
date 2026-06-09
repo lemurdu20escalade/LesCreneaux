@@ -211,8 +211,8 @@ declare(strict_types=1); ?>
                                 </fieldset>
                             <?php endif; ?>
                             <label class="field">
-                                <span class="field-label">Note par défaut <span class="meta">(facultatif, texte libre)</span></span>
-                                <input type="text" name="note_defaut" maxlength="500" value="<?= e($m['note_defaut'] ?? '') ?>">
+                                <span class="field-label">Note par défaut <span class="meta">(facultatif, retours à la ligne conservés)</span></span>
+                                <textarea name="note_defaut" maxlength="500" rows="3"><?= e($m['note_defaut'] ?? '') ?></textarea>
                             </label>
                             <label class="check">
                                 <input type="checkbox" name="active" value="1" <?= $actif ? 'checked' : '' ?>>
@@ -279,7 +279,7 @@ declare(strict_types=1); ?>
         <?php endif; ?>
         <label class="field">
             <span class="field-label">Note par défaut <span class="meta">(facultatif)</span></span>
-            <input type="text" name="note_defaut" maxlength="500" placeholder="ex. séance progression vol">
+            <textarea name="note_defaut" maxlength="500" rows="3" placeholder="ex. séance progression vol"></textarea>
         </label>
         <button type="submit" class="btn btn--filled">
             <?= icon('add', 18) ?>

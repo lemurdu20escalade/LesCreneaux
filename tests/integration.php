@@ -90,6 +90,7 @@ require_once __DIR__ . '/scenarios/03-rate-limit.php';
 require_once __DIR__ . '/scenarios/04-csrf-expiration.php';
 require_once __DIR__ . '/scenarios/05-admin-auth.php';
 require_once __DIR__ . '/scenarios/06-sans-referent.php';
+require_once __DIR__ . '/scenarios/07-note-multiligne.php';
 
 runRoutesPubliques();
 runInscriptions();
@@ -97,6 +98,7 @@ runRateLimit();
 runCsrfExpiration();
 runAdminAuth();
 runSansReferent();
+runNoteMultiligne();
 
 // ---------------------------------------------------------------------------
 // Récap final
