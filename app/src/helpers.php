@@ -145,6 +145,20 @@ function jourOuvreVoisines(array $jour): bool
     return false;
 }
 
+/**
+ * Vrai si une étiquette attachée dispense le créneau de référent·e (AG,
+ * événement…). Dans ce cas l'absence de référent·e n'est pas une alerte.
+ */
+function jourSansReferent(array $jour): bool
+{
+    foreach ($jour['labels'] ?? [] as $l) {
+        if ((int)($l['sans_referent'] ?? 0) === 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Le jour accepte des inscriptions : pas d'étiquette bloquante attachée. */
 function jourAccueilleInscriptions(array $jour): bool
 {

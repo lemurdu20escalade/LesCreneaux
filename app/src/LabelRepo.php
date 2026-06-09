@@ -27,34 +27,42 @@ final class LabelRepo
         return $pdo->query('SELECT * FROM labels ORDER BY ordre, nom')->fetchAll();
     }
 
+    /**
+     * @param array{bloque_inscriptions?:bool,ouvre_voisines?:bool,sans_referent?:bool} $flags
+     */
     public static function ajouter(
-        PDO $pdo, string $nom, string $couleur,
-        bool $bloqueInscriptions = false, bool $ouvreVoisines = false
+        PDO $pdo, string $nom, string $couleur, array $flags = []
     ): int {
         $stmt = $pdo->prepare(
-            'INSERT INTO labels (nom, couleur, bloque_inscriptions, ouvre_voisines)
-             VALUES (?, ?, ?, ?)'
+            'INSERT INTO labels (nom, couleur, bloque_inscriptions, ouvre_voisines, sans_referent)
+             VALUES (?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $nom, self::normaliserHex($couleur),
-            $bloqueInscriptions ? 1 : 0, $ouvreVoisines ? 1 : 0,
+            !empty($flags['bloque_inscriptions']) ? 1 : 0,
+            !empty($flags['ouvre_voisines']) ? 1 : 0,
+            !empty($flags['sans_referent']) ? 1 : 0,
         ]);
         return (int)$pdo->lastInsertId();
     }
 
+    /**
+     * @param array{bloque_inscriptions?:bool,ouvre_voisines?:bool,sans_referent?:bool} $flags
+     */
     public static function update(
-        PDO $pdo, int $id, string $nom, string $couleur,
-        bool $bloqueInscriptions = false, bool $ouvreVoisines = false
+        PDO $pdo, int $id, string $nom, string $couleur, array $flags = []
     ): void {
         $stmt = $pdo->prepare(
             'UPDATE labels
              SET nom = ?, couleur = ?,
-                 bloque_inscriptions = ?, ouvre_voisines = ?
+                 bloque_inscriptions = ?, ouvre_voisines = ?, sans_referent = ?
              WHERE id = ?'
         );
         $stmt->execute([
             $nom, self::normaliserHex($couleur),
-            $bloqueInscriptions ? 1 : 0, $ouvreVoisines ? 1 : 0,
+            !empty($flags['bloque_inscriptions']) ? 1 : 0,
+            !empty($flags['ouvre_voisines']) ? 1 : 0,
+            !empty($flags['sans_referent']) ? 1 : 0,
             $id,
         ]);
     }
@@ -193,7 +201,7 @@ final class LabelRepo
         $ph = implode(',', array_fill(0, count($jourIds), '?'));
         $stmt = $pdo->prepare(
             "SELECT jl.jour_id, l.id, l.nom, l.couleur,
-                    l.bloque_inscriptions, l.ouvre_voisines
+                    l.bloque_inscriptions, l.ouvre_voisines, l.sans_referent
                FROM jour_label jl
                JOIN labels l ON l.id = jl.label_id
               WHERE jl.jour_id IN ($ph)
@@ -208,6 +216,7 @@ final class LabelRepo
                 'couleur'             => $r['couleur'],
                 'bloque_inscriptions' => (int)$r['bloque_inscriptions'],
                 'ouvre_voisines'      => (int)$r['ouvre_voisines'],
+                'sans_referent'       => (int)$r['sans_referent'],
             ];
         }
         return $out;

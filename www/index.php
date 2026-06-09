@@ -585,19 +585,20 @@ $router->post('/label/ajouter', function (): void {
     if ($nom === '' || mb_strlen($nom) > 40) {
         erreur(400, 'Nom invalide.'); return;
     }
-    $bloque = !empty($_POST['bloque_inscriptions']);
-    $ouvre  = !empty($_POST['ouvre_voisines']);
+    $flags = [
+        'bloque_inscriptions' => !empty($_POST['bloque_inscriptions']),
+        'ouvre_voisines'      => !empty($_POST['ouvre_voisines']),
+        'sans_referent'       => !empty($_POST['sans_referent']),
+    ];
     $pdo = Database::connect(DB_PATH);
     try {
-        $newId = LabelRepo::ajouter($pdo, $nom, $couleur, $bloque, $ouvre);
+        $newId = LabelRepo::ajouter($pdo, $nom, $couleur, $flags);
     } catch (PDOException $e) {
         erreur(409, 'Une étiquette avec ce nom existe déjà.'); return;
     }
-    $flags = [];
-    if ($bloque) $flags[] = 'bloque_inscriptions';
-    if ($ouvre)  $flags[] = 'ouvre_voisines';
+    $actifs = array_keys(array_filter($flags));
     $resume = "Label #{$newId} « {$nom} » créé (couleur {$couleur})"
-        . ($flags ? ' — ' . implode(', ', $flags) : '');
+        . ($actifs ? ' — ' . implode(', ', $actifs) : '');
     redirect('/reglages#labels', 'label.ajouter', ['resume' => $resume]);
 });
 
@@ -612,25 +613,30 @@ $router->post('/label/{id}/update', function (array $params): void {
     if ($nom === '' || mb_strlen($nom) > 40) {
         erreur(400, 'Nom invalide.'); return;
     }
-    $bloque = !empty($_POST['bloque_inscriptions']);
-    $ouvre  = !empty($_POST['ouvre_voisines']);
+    $flags = [
+        'bloque_inscriptions' => !empty($_POST['bloque_inscriptions']),
+        'ouvre_voisines'      => !empty($_POST['ouvre_voisines']),
+        'sans_referent'       => !empty($_POST['sans_referent']),
+    ];
     $pdo = Database::connect(DB_PATH);
     $stmt = $pdo->prepare('SELECT * FROM labels WHERE id = ?');
     $stmt->execute([$id]);
     $avant = $stmt->fetch() ?: [];
-    LabelRepo::update($pdo, $id, $nom, $couleur, $bloque, $ouvre);
+    LabelRepo::update($pdo, $id, $nom, $couleur, $flags);
     $diff = Surveillance::diff(
         [
             'nom'                 => $avant['nom']                 ?? null,
             'couleur'             => $avant['couleur']             ?? null,
             'bloque_inscriptions' => $avant['bloque_inscriptions'] ?? null,
             'ouvre_voisines'      => $avant['ouvre_voisines']      ?? null,
+            'sans_referent'       => $avant['sans_referent']       ?? null,
         ],
         [
             'nom'                 => $nom,
             'couleur'             => LabelRepo::normaliserHex($couleur),
-            'bloque_inscriptions' => $bloque ? 1 : 0,
-            'ouvre_voisines'      => $ouvre ? 1 : 0,
+            'bloque_inscriptions' => $flags['bloque_inscriptions'] ? 1 : 0,
+            'ouvre_voisines'      => $flags['ouvre_voisines'] ? 1 : 0,
+            'sans_referent'       => $flags['sans_referent'] ? 1 : 0,
         ],
     );
     redirect('/reglages#labels', 'label.update', ['diff' => "Label #{$id}\n{$diff}"]);

@@ -7,6 +7,7 @@
 declare(strict_types=1);
 $normal  = jourAccueilleInscriptions($jour);
 $statut  = couleurReferente($jour);
+$sansReferent = jourSansReferent($jour);
 $d       = new DateTimeImmutable($jour['date']);
 $today   = new DateTimeImmutable('today');
 $temporalite = $d < $today ? 'passe' : ($d == $today ? 'aujourdhui' : 'futur');
@@ -57,7 +58,7 @@ $rendreRef = static function (array $r) use ($hDebutJour, $hFinJour): string {
         </span>
 
         <span class="c-chips">
-            <?php if ($normal): ?>
+            <?php if ($normal && !$sansReferent): ?>
                 <span class="chip chip--<?= e($statut) ?>">
                     <span class="chip-dot" aria-hidden="true"></span>
                     <?= e(libelleStatut($statut)) ?>
