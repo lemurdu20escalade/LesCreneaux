@@ -211,8 +211,8 @@ declare(strict_types=1); ?>
                                 </fieldset>
                             <?php endif; ?>
                             <label class="field">
-                                <span class="field-label">Note par défaut <span class="meta">(facultatif, texte libre)</span></span>
-                                <input type="text" name="note_defaut" maxlength="500" value="<?= e($m['note_defaut'] ?? '') ?>">
+                                <span class="field-label">Note par défaut <span class="meta">(facultatif, retours à la ligne conservés)</span></span>
+                                <textarea name="note_defaut" maxlength="500" rows="3"><?= e($m['note_defaut'] ?? '') ?></textarea>
                             </label>
                             <label class="check">
                                 <input type="checkbox" name="active" value="1" <?= $actif ? 'checked' : '' ?>>
@@ -279,7 +279,7 @@ declare(strict_types=1); ?>
         <?php endif; ?>
         <label class="field">
             <span class="field-label">Note par défaut <span class="meta">(facultatif)</span></span>
-            <input type="text" name="note_defaut" maxlength="500" placeholder="ex. séance progression vol">
+            <textarea name="note_defaut" maxlength="500" rows="3" placeholder="ex. séance progression vol"></textarea>
         </label>
         <button type="submit" class="btn btn--filled">
             <?= icon('add', 18) ?>
@@ -351,6 +351,11 @@ declare(strict_types=1); ?>
                                        <?= (int)($l['ouvre_voisines'] ?? 0) === 1 ? 'checked' : '' ?>>
                                 <span>Ouvre aux voisin·es <span class="meta">(accepte les non-adhérent·es)</span></span>
                             </label>
+                            <label class="check">
+                                <input type="checkbox" name="sans_referent" value="1"
+                                       <?= (int)($l['sans_referent'] ?? 0) === 1 ? 'checked' : '' ?>>
+                                <span>Pas de référent·e requis·e <span class="meta">(AG, événement…)</span></span>
+                            </label>
                             <div class="modele-edit-actions">
                                 <button type="submit" form="label-supprimer-<?= (int)$l['id'] ?>"
                                         class="btn-text btn-text--danger">Supprimer</button>
@@ -382,6 +387,10 @@ declare(strict_types=1); ?>
         <label class="check">
             <input type="checkbox" name="ouvre_voisines" value="1">
             <span>Ouvre aux voisin·es <span class="meta">(accepte les non-adhérent·es)</span></span>
+        </label>
+        <label class="check">
+            <input type="checkbox" name="sans_referent" value="1">
+            <span>Pas de référent·e requis·e <span class="meta">(AG, événement…)</span></span>
         </label>
         <button type="submit" class="btn btn--filled">
             <?= icon('add', 18) ?>

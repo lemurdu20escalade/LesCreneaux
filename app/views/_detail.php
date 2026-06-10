@@ -9,6 +9,7 @@ $normal       = jourAccueilleInscriptions($jour);
 $inscriptible = $normal;
 $voisines     = jourOuvreVoisines($jour);
 $statut       = couleurReferente($jour);
+$sansReferent = jourSansReferent($jour);
 $d      = new DateTimeImmutable($jour['date']);
 $nb     = count($jour['inscriptions']);
 $cap    = (int)$jour['capacite'];
@@ -31,7 +32,7 @@ $hxSwap   = $inDrawer
             <span><?= e(DateFr::formatPlage($jour['heure_debut'], $jour['heure_fin'])) ?></span>
         </p>
         <p class="detail-chips">
-            <?php if ($normal): ?>
+            <?php if ($normal && !$sansReferent): ?>
                 <span class="chip chip--<?= e($statut) ?>">
                     <span class="chip-dot" aria-hidden="true"></span>
                     <?= e(libelleStatut($statut)) ?>
@@ -49,10 +50,14 @@ $hxSwap   = $inDrawer
     <section class="detail-section">
         <h3 class="detail-titre-section">Référent·es</h3>
         <?php if (empty($jour['referentes'])): ?>
-            <p class="alerte">
-                <?= icon('error_outline', 18) ?>
-                <span>Sans référent·e, la salle n’ouvre pas.</span>
-            </p>
+            <?php if ($sansReferent): ?>
+                <p class="meta">Pas de référent·e requis·e pour ce créneau.</p>
+            <?php else: ?>
+                <p class="alerte">
+                    <?= icon('error_outline', 18) ?>
+                    <span>Sans référent·e, la salle n’ouvre pas.</span>
+                </p>
+            <?php endif; ?>
         <?php else: ?>
             <ul class="liste-referentes">
                 <?php foreach ($jour['referentes'] as $r): ?>
@@ -73,7 +78,7 @@ $hxSwap   = $inDrawer
             </ul>
         <?php endif; ?>
 
-        <details class="bloc-ajout"<?= empty($jour['referentes']) ? ' open' : '' ?>>
+        <details class="bloc-ajout"<?= (empty($jour['referentes']) && !$sansReferent) ? ' open' : '' ?>>
             <summary><?= icon('person_add', 16) ?><span>Ajouter un·e référent·e</span></summary>
             <form action="/jour/<?= $jourId ?>/referente/ajouter" method="post" class="form-ajout"
                   <?php if ($inDrawer): ?>hx-post="/jour/<?= $jourId ?>/referente/ajouter"<?= $hxSwap ?><?php endif; ?>>
@@ -211,8 +216,8 @@ $hxSwap   = $inDrawer
                 <input type="number" name="capacite" min="1" max="500" value="<?= $cap ?>" required>
             </label>
             <label class="field">
-                <span class="field-label">Note</span>
-                <input type="text" name="note" maxlength="500" value="<?= e($jour['note'] ?? '') ?>" placeholder="ex. niveau débutant">
+                <span class="field-label">Note <span class="meta">(les retours à la ligne sont conservés)</span></span>
+                <textarea name="note" maxlength="500" rows="3" placeholder="ex. niveau débutant"><?= e($jour['note'] ?? '') ?></textarea>
             </label>
             <button type="submit" class="btn btn--filled">Enregistrer</button>
         </form>

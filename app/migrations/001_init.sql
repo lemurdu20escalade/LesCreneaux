@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS labels (
   couleur              TEXT    NOT NULL DEFAULT '#90a4ae',
   ordre                INTEGER NOT NULL DEFAULT 0,
   bloque_inscriptions  INTEGER NOT NULL DEFAULT 0,
-  ouvre_voisines       INTEGER NOT NULL DEFAULT 0
+  ouvre_voisines       INTEGER NOT NULL DEFAULT 0,
+  sans_referent        INTEGER NOT NULL DEFAULT 0   -- dispense de référent·e (AG, événement)
 );
 
 CREATE TABLE IF NOT EXISTS jour_label (

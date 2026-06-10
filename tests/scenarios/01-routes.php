@@ -11,12 +11,17 @@ function runRoutesPubliques(): void
     $mois = '/mois/2026-05';
 
     // La racine rend le mois courant sans redirect : l'URL partagée
-    // reste `/` et ne gèle pas un mois dans le lien.
-    $moisCourant = (new DateTimeImmutable('now'))->format('Y-m');
+    // reste `/` et ne gèle pas un mois dans le lien. On identifie le mois
+    // courant par la nav (liens vers les mois adjacents), indépendamment du
+    // titre de page (qui affiche le nom de l'asso, pas le mois).
+    $base     = new DateTimeImmutable('first day of this month');
+    $moisPrev = $base->modify('-1 month')->format('Y-m');
+    $moisNext = $base->modify('+1 month')->format('Y-m');
     $r = http('GET', '/');
     ok($r['code'] === 200,                              'GET / → 200 (pas de redirect)');
     ok(str_contains($r['body'], '<!doctype html'),      'GET / → body contient <!doctype html');
-    ok(str_contains($r['body'], $moisCourant),          'GET / → affiche le mois courant');
+    ok(str_contains($r['body'], '/mois/' . $moisPrev)
+       && str_contains($r['body'], '/mois/' . $moisNext), 'GET / → affiche le mois courant (nav adjacente)');
     ok(!str_contains($r['body'], 'bandeau-mois-passe'), 'GET / → pas de bannière mois passé');
 
     $r = http('GET', $mois);

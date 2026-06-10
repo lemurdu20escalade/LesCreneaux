@@ -145,6 +145,20 @@ function jourOuvreVoisines(array $jour): bool
     return false;
 }
 
+/**
+ * Vrai si une étiquette attachée dispense le créneau de référent·e (AG,
+ * événement…). Dans ce cas l'absence de référent·e n'est pas une alerte.
+ */
+function jourSansReferent(array $jour): bool
+{
+    foreach ($jour['labels'] ?? [] as $l) {
+        if ((int)($l['sans_referent'] ?? 0) === 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /** Le jour accepte des inscriptions : pas d'étiquette bloquante attachée. */
 function jourAccueilleInscriptions(array $jour): bool
 {
@@ -173,6 +187,16 @@ function parseHeure(string $s): ?string
         return null;
     }
     return sprintf('%02d:%02d', (int)$m[1], (int)$m[2]);
+}
+
+/**
+ * Normalise les fins de ligne CRLF/CR → LF. Les <textarea> soumettent du
+ * CRLF : on stocke du LF propre pour un comptage de longueur exact et un
+ * rendu sans \r résiduel. À appeler à la frontière (réception du POST).
+ */
+function normaliserSauts(string $s): string
+{
+    return str_replace(["\r\n", "\r"], "\n", $s);
 }
 
 /** Valide 'YYYY-MM-DD' avec date réelle du calendrier, sinon null. */

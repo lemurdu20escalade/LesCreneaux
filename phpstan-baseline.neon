@@ -229,9 +229,15 @@ parameters:
 			path: app/src/helpers.php
 
 		-
+			message: '#^Function jourSansReferent\(\) has parameter \$jour with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/src/helpers.php
+
+		-
 			message: '#^Variable \$jour might not be defined\.$#'
 			identifier: variable.undefined
-			count: 15
+			count: 16
 			path: app/views/_detail.php
 
 		-
@@ -243,7 +249,7 @@ parameters:
 		-
 			message: '#^Variable \$jour might not be defined\.$#'
 			identifier: variable.undefined
-			count: 11
+			count: 12
 			path: app/views/_ligne.php
 
 		-

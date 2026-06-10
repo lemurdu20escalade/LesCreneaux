@@ -102,6 +102,34 @@ final class Database
      */
     private static function fixups(PDO $pdo): void
     {
+        // Ajoute labels.sans_referent aux bases antérieures (dispense de
+        // référent·e, ex. AG). Check + ALTER dans une transaction IMMEDIATE :
+        // au premier hit post-déploiement, deux connexions concurrentes sont
+        // sérialisées par le busy_timeout (5 s) sur le lock RESERVED — la 2e
+        // attend le COMMIT de la 1re, re-teste pragma_table_info et devient un
+        // no-op (pas de « duplicate column »). Au-delà de 5 s de contention la
+        // 2e échoue explicitement en RuntimeException, c'est acceptable.
+        // ALTER ADD COLUMN à défaut constant ne réécrit pas la table.
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $aSansReferent = $pdo->query(
+                "SELECT COUNT(*) FROM pragma_table_info('labels') WHERE name='sans_referent'"
+            )->fetchColumn();
+            if ((int)$aSansReferent === 0) {
+                $pdo->exec('ALTER TABLE labels ADD COLUMN sans_referent INTEGER NOT NULL DEFAULT 0');
+            }
+            $pdo->exec('COMMIT');
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->exec('ROLLBACK');
+            }
+            throw new RuntimeException(
+                'Échec du fixup labels.sans_referent : ' . $e->getMessage(),
+                0,
+                $e
+            );
+        }
+
         // Rend referentes.heure_fin nullable si ce n'est pas déjà le cas.
         $col = $pdo->query(
             "SELECT \"notnull\" FROM pragma_table_info('referentes') WHERE name='heure_fin'"
