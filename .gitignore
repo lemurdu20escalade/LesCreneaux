@@ -43,6 +43,11 @@ coverage/
 /TODO.local*
 /notes.local*
 
+# seeds propres à une instance (planning réel d'une asso), pas pour le repo
+# public — suffixe .local.php. Les seeds de démo/référence (seed-modeles,
+# seed-avril) restent versionnés.
+/scripts/*.local.php
+
 # artefacts du pipeline /dev (planning local, pas pour le repo)
 /PHASES.md
 /phases/
