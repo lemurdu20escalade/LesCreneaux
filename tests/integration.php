@@ -92,6 +92,7 @@ require_once __DIR__ . '/scenarios/05-admin-auth.php';
 require_once __DIR__ . '/scenarios/06-sans-referent.php';
 require_once __DIR__ . '/scenarios/07-note-multiligne.php';
 require_once __DIR__ . '/scenarios/08-plage-etiquettes.php';
+require_once __DIR__ . '/scenarios/09-note-liens.php';
 
 runRoutesPubliques();
 runInscriptions();
@@ -101,6 +102,7 @@ runAdminAuth();
 runSansReferent();
 runNoteMultiligne();
 runPlageEtiquettes();
+runNoteLiens();
 
 // ---------------------------------------------------------------------------
 // Récap final

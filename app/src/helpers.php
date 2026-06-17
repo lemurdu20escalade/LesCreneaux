@@ -11,6 +11,34 @@ function e(?string $s): string
 }
 
 /**
+ * Échappe le texte et transforme les URLs http(s) en liens cliquables
+ * (nouvel onglet, sans fuite de referrer). N'autorise que http/https — pas
+ * de javascript:, data:, etc. Sert à rendre les notes de créneau, du texte
+ * libre où un·e visiteur·e peut coller un lien (feuille d'inscription…).
+ */
+function lienAuto(string $texte): string
+{
+    $morceaux = preg_split('~(https?://[^\s<]+)~i', $texte, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $html = '';
+    foreach ($morceaux as $i => $m) {
+        if ($i % 2 === 0) {            // texte entre les URLs
+            $html .= e($m);
+            continue;
+        }
+        // La ponctuation finale ne fait pas partie de l'URL (« …#gid=1. »).
+        $suffixe = '';
+        if (preg_match('~[.,;:!?)\]]+$~', $m, $found)) {
+            $suffixe = $found[0];
+            $m = substr($m, 0, -strlen($suffixe));
+        }
+        $url = e($m);
+        $html .= '<a href="' . $url . '" target="_blank" rel="noopener noreferrer nofollow">'
+            . $url . '</a>' . e($suffixe);
+    }
+    return $html;
+}
+
+/**
  * Vrai si la requête arrive en HTTPS (directement, via un reverse-proxy
  * qui pose X-Forwarded-Proto, ou si le serveur renseigne REQUEST_SCHEME).
  * Utilisé pour décider du flag Secure sur les cookies.
