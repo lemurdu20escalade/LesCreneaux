@@ -68,11 +68,10 @@ $rendreRef = static function (array $r) use ($hDebutJour, $hFinJour): string {
                 <span class="chip" style="<?= e(chipStyleLabel($l['couleur'])) ?>"><?= e($l['nom']) ?></span>
             <?php endforeach; ?>
             <?php if (!empty($jour['note'])):
-                // Aperçu condensé : seule la 1re ligne de la note (les notes
-                // multi-lignes se lisent en entier dans le drawer). « … »
-                // signale qu'il y a une suite.
-                $lignesNote = explode("\n", $jour['note']);
-                $apercuNote = $lignesNote[0] . (count($lignesNote) > 1 ? ' …' : '');
+                // Aperçu condensé : note entière, sauts de ligne repliés en
+                // espace (le drawer affiche la mise en forme complète). Le CSS
+                // .c-note-jour borne l'affichage à 2 lignes (line-clamp).
+                $apercuNote = str_replace("\n", ' ', (string)$jour['note']);
             ?>
                 <span class="c-note-jour"><?= e($apercuNote) ?></span>
             <?php endif; ?>
