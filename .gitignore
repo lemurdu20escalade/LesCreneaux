@@ -2,6 +2,11 @@
 /data/
 /app/config.php
 
+# sauvegardes de la prod rapatriées en FTP (bases SQLite avec données perso
+# d'adhérent·es) — ne JAMAIS versionner sur le dépôt public
+/Backup/
+/backup/
+
 # dépendances (si Composer ajouté un jour)
 /vendor/
 
