@@ -212,6 +212,44 @@ function parseDate(string $s): ?string
 }
 
 /**
+ * Ne garde que les jours de semaine ISO valides (1=lundi … 7=dimanche),
+ * dédoublonnés. Entrée brute issue d'un champ `jours_semaine[]`.
+ *
+ * @return int[]
+ */
+function filtrerJoursSemaine(mixed $brut): array
+{
+    $jours = array_map('intval', (array)$brut);
+    $jours = array_filter($jours, static fn (int $j): bool => $j >= 1 && $j <= 7);
+    return array_values(array_unique($jours));
+}
+
+/**
+ * Décode un champ `action[<labelId>] = rien|ajouter|retirer` en deux listes
+ * d'ids de labels. Les ids ≤ 0 et les actions inconnues sont ignorés.
+ *
+ * @param array<array-key,mixed> $actions
+ * @return array{0:int[],1:int[]} [aAjouter, aRetirer]
+ */
+function decoderActionsEtiquettes(array $actions): array
+{
+    $ajouter = [];
+    $retirer = [];
+    foreach ($actions as $labelId => $action) {
+        $lid = (int)$labelId;
+        if ($lid <= 0) {
+            continue;
+        }
+        if ($action === 'ajouter') {
+            $ajouter[] = $lid;
+        } elseif ($action === 'retirer') {
+            $retirer[] = $lid;
+        }
+    }
+    return [$ajouter, $retirer];
+}
+
+/**
  * Rend le détail d'un créneau (partiel _detail.php) avec données fraîches.
  * Utilisé pour la réponse HX du GET /jour/{id} et pour les POST htmx
  * qui veulent rafraîchir le drawer in-place sans full reload.
@@ -296,9 +334,11 @@ function erreur(int $code, string $message): void
     http_response_code($code);
     $titres = [
         400 => 'Requête invalide',
+        403 => 'Action non autorisée',
         404 => 'Page introuvable',
         409 => 'Conflit',
         429 => 'Trop de demandes',
+        500 => 'Erreur interne',
     ];
     $libelle = $titres[$code] ?? ('Erreur ' . $code);
     $titre   = $libelle . ' — ' . setting(SettingsRepo::CLE_ASSO_NOM, ASSO_NOM_DEFAUT);

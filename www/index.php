@@ -38,12 +38,38 @@ require $appDir . '/src/JourRepo.php';
 require $appDir . '/src/ReferenteRepo.php';
 require $appDir . '/src/ModeleRepo.php';
 require $appDir . '/src/LabelRepo.php';
+require $appDir . '/src/PlageOperationRepo.php';
 require $appDir . '/src/FermetureRepo.php';
 require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
 require $appDir . '/src/RateLimit.php';
 require $appDir . '/src/AdminAuth.php';
+
+// Filet global : une exception non rattrapée (typiquement une PDOException)
+// ne doit jamais finir en page blanche ou en stacktrace exposée. On vide le
+// buffer en cours, on logue, on rend une 500 propre via le layout. erreur()
+// retouche la DB (nom d'asso) : si c'est justement la DB qui a échoué, on se
+// rabat sur un HTML brut plutôt que de relancer l'exception dans le handler.
+set_exception_handler(static function (Throwable $e): void {
+    error_log('[lescreneaux] exception non gérée : ' . $e::class . ' — '
+        . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    if (headers_sent()) {
+        return;
+    }
+    try {
+        erreur(500, "Une erreur interne est survenue. L'opération a été "
+            . "annulée (rien enregistré). Réessaie, ou préviens un·e admin.");
+    } catch (Throwable) {
+        http_response_code(500);
+        header('Content-Type: text/html; charset=UTF-8');
+        echo '<!doctype html><meta charset="utf-8"><title>Erreur interne</title>'
+            . '<p>Une erreur interne est survenue. Réessaie plus tard.</p>';
+    }
+});
 
 // Compression transparente de toutes les réponses HTML : gzip/deflate
 // selon Accept-Encoding. L'app sert beaucoup de HTML répétitif (formulaires
@@ -312,6 +338,13 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
     if (!InscriptionRepo::jourExiste($pdo, $jourId)) {
         erreur(404, 'Créneau introuvable.'); return;
     }
+    // Le masquage du formulaire côté UI ne suffit pas : un POST direct
+    // (onglet gardé, requête forgée) contournerait un créneau « Salle
+    // fermée ». On revérifie le blocage à la frontière serveur.
+    $labelsJour = LabelRepo::labelsParJour($pdo, [$jourId])[$jourId] ?? [];
+    if (jourBloque(['labels' => $labelsJour])) {
+        erreur(403, 'Les inscriptions sont fermées sur ce créneau.'); return;
+    }
     $nom = trim((string)($_POST['nom'] ?? ''));
     if ($nom === '' || mb_strlen($nom) > 40) {
         erreur(400, 'Prénom invalide (1 à 40 caractères).'); return;
@@ -473,6 +506,7 @@ $router->get('/reglages', function () use ($appDir): void {
     $modeles    = ModeleRepo::lister($pdo);
     $labels     = LabelRepo::lister($pdo);
     $fermetures = FermetureRepo::lister($pdo);
+    $plageOps   = PlageOperationRepo::recentes($pdo);
     $assoNom    = SettingsRepo::get($pdo, SettingsRepo::CLE_ASSO_NOM,      ASSO_NOM_DEFAUT);
     $assoLogo   = SettingsRepo::get($pdo, SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
     $bandeau    = SettingsRepo::get($pdo, SettingsRepo::CLE_BANDEAU_HTML,  '');
@@ -678,6 +712,87 @@ $router->post('/label/{id}/supprimer', function (array $params): void {
         ? "Label #{$id} « {$nomAvant} » supprimé"
         : "Label #{$id} (introuvable)";
     redirect('/reglages#labels', 'label.supprimer', ['resume' => $resume]);
+});
+
+$router->post('/plage/etiquettes', function (): void {
+    AdminAuth::exigerConnexion();
+    if (!Csrf::verifierPost($_POST)) {
+        erreur(400, 'Requête refusée.'); return;
+    }
+    $debut = parseDate((string)($_POST['debut'] ?? ''));
+    $fin   = parseDate((string)($_POST['fin']   ?? ''));
+    if ($debut === null || $fin === null || $debut > $fin) {
+        erreur(400, 'Dates invalides.'); return;
+    }
+    // Borne le travail : une plage de plusieurs années toucherait des
+    // milliers de créneaux. 366 jours couvre large (saison, année complète).
+    if ((new DateTimeImmutable($fin))->diff(new DateTimeImmutable($debut))->days > 366) {
+        erreur(400, 'Plage trop large (366 jours maximum).'); return;
+    }
+    $joursSemaine = filtrerJoursSemaine($_POST['jours_semaine'] ?? []);
+    if ($joursSemaine === []) {
+        flash('Coche au moins un jour de la semaine.', 'info');
+        redirect('/reglages#plage');
+    }
+    // Le formulaire envoie action[<labelId>] = rien|ajouter|retirer ;
+    // on reconstruit les deux listes d'ids attendues par le traitement.
+    [$ajouter, $retirer] = decoderActionsEtiquettes((array)($_POST['action'] ?? []));
+    if (empty($ajouter) && empty($retirer)) {
+        flash('Aucune action choisie : mets « ajouter » ou « retirer » sur au moins une étiquette.', 'info');
+        redirect('/reglages#plage');
+    }
+    $pdo     = Database::connect(DB_PATH);
+    $jourIds = JourRepo::idsDansPlage($pdo, $debut, $fin, $joursSemaine);
+    if ($jourIds === []) {
+        flash('Aucun créneau sur cette plage (le mois n\'est peut-être pas encore généré). Rien modifié.', 'info');
+        redirect('/reglages#plage');
+    }
+    // Mutation + trace dans la MÊME transaction : l'historique reste cohérent
+    // avec l'état réel (pas de mutation sans trace, ni de trace sans mutation).
+    // Version::signature() inclut jour_label → l'ETag bouge, les clients en
+    // polling se rafraîchissent. Le timestamp vient de l'horloge serveur.
+    $n          = count($jourIds);
+    $horodatage = (new DateTimeImmutable('now'))->format('Y-m-d H:i');
+    [$nbAjoutees, $nbRetirees] = Database::tx(
+        $pdo,
+        function (PDO $pdo) use (
+            $jourIds, $ajouter, $retirer, $debut, $fin, $joursSemaine, $n, $horodatage
+        ): array {
+            $a = LabelRepo::ajouterAuxJours($pdo, $jourIds, $ajouter);
+            $r = LabelRepo::retirerDesJours($pdo, $jourIds, $retirer);
+            if ($a > 0 || $r > 0) {
+                PlageOperationRepo::enregistrer(
+                    $pdo, $debut, $fin, $joursSemaine, $ajouter, $retirer, $n, $horodatage
+                );
+            }
+            return [$a, $r];
+        }
+    );
+    if ($nbAjoutees === 0 && $nbRetirees === 0) {
+        flash("{$n} créneau(x) ciblé(s), mais rien à changer (étiquettes déjà à jour).", 'info');
+        redirect('/reglages#plage');
+    }
+    flash("{$n} créneau(x) : +{$nbAjoutees} / -{$nbRetirees} étiquette(s).");
+    $resume = "Plage {$debut}→{$fin} : {$n} créneau(x), "
+        . "+{$nbAjoutees} / -{$nbRetirees} étiquette(s)";
+    redirect('/reglages#plage', 'plage.etiquettes', ['resume' => $resume]);
+});
+
+$router->get('/plage/apercu', function () use ($appDir): void {
+    AdminAuth::exigerConnexion();
+    $debut = parseDate((string)($_GET['debut'] ?? ''));
+    $fin   = parseDate((string)($_GET['fin']   ?? ''));
+    $joursSemaine = filtrerJoursSemaine($_GET['jours_semaine'] ?? []);
+    $datesValides = $debut !== null && $fin !== null && $debut <= $fin
+        && (new DateTimeImmutable($fin))->diff(new DateTimeImmutable($debut))->days <= 366;
+    $aucunJour = $datesValides && $joursSemaine === [];
+    $pdo = Database::connect(DB_PATH);
+    $jourIds = $datesValides
+        ? JourRepo::idsDansPlage($pdo, $debut, $fin, $joursSemaine)
+        : [];
+    $comptes = LabelRepo::comptesParLabelDansJours($pdo, $jourIds);
+    $labels  = LabelRepo::lister($pdo);
+    require $appDir . '/views/_plage_apercu.php';
 });
 
 $router->post('/modele/semaine-type', function (): void {

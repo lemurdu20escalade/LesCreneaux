@@ -91,6 +91,7 @@ require_once __DIR__ . '/scenarios/04-csrf-expiration.php';
 require_once __DIR__ . '/scenarios/05-admin-auth.php';
 require_once __DIR__ . '/scenarios/06-sans-referent.php';
 require_once __DIR__ . '/scenarios/07-note-multiligne.php';
+require_once __DIR__ . '/scenarios/08-plage-etiquettes.php';
 
 runRoutesPubliques();
 runInscriptions();
@@ -99,6 +100,7 @@ runCsrfExpiration();
 runAdminAuth();
 runSansReferent();
 runNoteMultiligne();
+runPlageEtiquettes();
 
 // ---------------------------------------------------------------------------
 // Récap final

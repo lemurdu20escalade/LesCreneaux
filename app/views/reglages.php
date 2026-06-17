@@ -401,6 +401,122 @@ declare(strict_types=1); ?>
     </div><!-- /.reglage-card-corps -->
 </details>
 
+<details class="reglage-card" id="plage">
+    <summary>
+        <span class="reglage-card-titre">Étiquettes par plage</span>
+        <span class="reglage-card-resume">Étiquetage en masse sur une période</span>
+        <span class="reglage-card-chevron" aria-hidden="true"><?= icon('expand_more', 20) ?></span>
+    </summary>
+    <div class="reglage-card-corps">
+    <p class="meta" style="margin-bottom: var(--sp-3);">
+        Ajoute ou retire des étiquettes sur tous les créneaux d’une période, d’un coup.<br>
+        Pratique pour marquer un été « ouverture » ou retirer une étiquette héritée d’un modèle sur quelques semaines.
+    </p>
+
+    <?php if (empty($labels)): ?>
+        <div class="etat-vide">
+            <p class="meta">Crée d’abord une étiquette dans la carte « Étiquettes&nbsp;libres ».</p>
+        </div>
+    <?php else: ?>
+        <form action="/plage/etiquettes" method="post" class="form-carte">
+            <?= Csrf::champs() ?>
+            <div class="field-row">
+                <label class="field">
+                    <span class="field-label">Du</span>
+                    <input type="date" name="debut" required>
+                </label>
+                <label class="field">
+                    <span class="field-label">Au</span>
+                    <input type="date" name="fin" required>
+                </label>
+            </div>
+            <fieldset class="field-labels">
+                <legend class="field-label">Jours concernés</legend>
+                <div class="plage-jours">
+                    <?php foreach ([1 => 'Lun', 2 => 'Mar', 3 => 'Mer', 4 => 'Jeu', 5 => 'Ven', 6 => 'Sam', 7 => 'Dim'] as $num => $nom): ?>
+                        <label class="check">
+                            <input type="checkbox" name="jours_semaine[]" value="<?= $num ?>" checked>
+                            <span><?= $nom ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </fieldset>
+            <fieldset class="field-labels">
+                <legend class="field-label">Étiquettes à appliquer</legend>
+                <?php foreach ($labels as $l): $lid = (int)$l['id']; ?>
+                    <div class="plage-action">
+                        <span class="chip" style="<?= e(chipStyleLabel($l['couleur'])) ?>"><?= e($l['nom']) ?></span>
+                        <span class="plage-action-choix">
+                            <label class="check"><input type="radio" name="action[<?= $lid ?>]" value="rien" checked><span>Laisser</span></label>
+                            <label class="check"><input type="radio" name="action[<?= $lid ?>]" value="ajouter"><span>Ajouter</span></label>
+                            <label class="check"><input type="radio" name="action[<?= $lid ?>]" value="retirer"><span>Retirer</span></label>
+                        </span>
+                    </div>
+                <?php endforeach; ?>
+            </fieldset>
+            <div class="plage-apercu-zone">
+                <button type="button" class="btn-text"
+                        hx-get="/plage/apercu" hx-include="closest form" hx-target="#plage-apercu">
+                    <?= icon('history', 18) ?>
+                    <span>Aperçu des créneaux concernés</span>
+                </button>
+                <div id="plage-apercu"></div>
+            </div>
+            <button type="submit" class="btn btn--filled">
+                <?= icon('schedule', 18) ?>
+                <span>Appliquer à la plage</span>
+            </button>
+        </form>
+    <?php endif; ?>
+
+    <?php if (!empty($plageOps)): ?>
+        <?php
+            $joursAbrev  = [1 => 'Lun', 2 => 'Mar', 3 => 'Mer', 4 => 'Jeu', 5 => 'Ven', 6 => 'Sam', 7 => 'Dim'];
+            $labelsParId = [];
+            foreach ($labels as $lbl) { $labelsParId[(int)$lbl['id']] = $lbl; }
+        ?>
+        <div class="sous-section">
+            <h4>Dernières applications</h4>
+            <p class="meta" style="margin-bottom: var(--sp-2);">
+                « Reprendre » recharge ces réglages dans le formulaire ci-dessus pour vérifier ou corriger (ex. repasser en <em>Retirer</em>).
+            </p>
+            <ul class="liste-modeles plage-historique">
+                <?php foreach ($plageOps as $op):
+                    $joursTxt = count($op['jours_semaine']) === 7
+                        ? 'tous les jours'
+                        : implode(', ', array_map(fn(int $n): string => $joursAbrev[$n] ?? '?', $op['jours_semaine']));
+                ?>
+                    <li class="modele plage-op"
+                        data-debut="<?= e($op['debut']) ?>"
+                        data-fin="<?= e($op['fin']) ?>"
+                        data-jours="<?= e(implode(',', $op['jours_semaine'])) ?>"
+                        data-ajouter="<?= e(implode(',', $op['labels_ajoutes'])) ?>"
+                        data-retirer="<?= e(implode(',', $op['labels_retires'])) ?>">
+                        <div class="plage-op-tete">
+                            <span class="meta"><?= e($op['cree_le']) ?></span>
+                            <button type="button" class="btn-text plage-op-reprendre">
+                                <?= icon('history', 16) ?><span>Reprendre</span>
+                            </button>
+                        </div>
+                        <div class="meta plage-op-meta">
+                            <?= e($op['debut']) ?> → <?= e($op['fin']) ?> · <?= e($joursTxt) ?> · <?= (int)$op['nb_creneaux'] ?> créneau<?= $op['nb_creneaux'] > 1 ? 'x' : '' ?>
+                        </div>
+                        <span class="modele-chips">
+                            <?php foreach ($op['labels_ajoutes'] as $lid): $lbl = $labelsParId[$lid] ?? null; ?>
+                                <span class="chip" style="<?= $lbl ? e(chipStyleLabel($lbl['couleur'])) : '' ?>">+&nbsp;<?= $lbl ? e($lbl['nom']) : '#' . (int)$lid ?></span>
+                            <?php endforeach; ?>
+                            <?php foreach ($op['labels_retires'] as $lid): $lbl = $labelsParId[$lid] ?? null; ?>
+                                <span class="chip plage-op-chip-retire" style="<?= $lbl ? e(chipStyleLabel($lbl['couleur'])) : '' ?>">−&nbsp;<?= $lbl ? e($lbl['nom']) : '#' . (int)$lid ?></span>
+                            <?php endforeach; ?>
+                        </span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
+    </div><!-- /.reglage-card-corps -->
+</details>
+
 <details class="reglage-card" id="fermetures">
     <summary>
         <span class="reglage-card-titre">Jours de fermeture du gymnase</span>
@@ -448,10 +564,15 @@ declare(strict_types=1); ?>
                 </label>
                 <span class="meta fermetures-astuce">Maj+clic pour sélectionner une plage</span>
             </div>
+            <?php $anneeActuelle = (int)date('Y'); ?>
             <?php foreach ($parAnnee as $annee => $liste): ?>
-                <h4 class="fermeture-annee"><?= e((string)$annee) ?> <span class="meta">— <?= count($liste) ?> fermeture<?= count($liste) > 1 ? 's' : '' ?></span></h4>
-                <ul class="liste-fermetures">
-                    <?php foreach ($liste as $f): ?>
+                <details class="fermeture-annee-groupe"<?= (int)$annee === $anneeActuelle ? ' open' : '' ?>>
+                    <summary class="fermeture-annee">
+                        <span class="fermeture-annee-titre"><?= e((string)$annee) ?> <span class="meta">— <?= count($liste) ?> fermeture<?= count($liste) > 1 ? 's' : '' ?></span></span>
+                        <span class="fermeture-annee-chevron" aria-hidden="true"><?= icon('expand_more', 18) ?></span>
+                    </summary>
+                    <ul class="liste-fermetures">
+                        <?php foreach ($liste as $f): ?>
                         <?php
                             $d = new DateTimeImmutable($f['date']);
                             $libelle = DateFr::formatCourt($d);
@@ -473,8 +594,9 @@ declare(strict_types=1); ?>
                                 </button>
                             </form>
                         </li>
-                    <?php endforeach; ?>
-                </ul>
+                        <?php endforeach; ?>
+                    </ul>
+                </details>
             <?php endforeach; ?>
             <div class="barre-supprimer-lot" aria-live="polite">
                 <span class="barre-compteur">
@@ -567,6 +689,7 @@ declare(strict_types=1); ?>
     <script src="/assets/ics-import.js" defer></script>
     <script src="/assets/fermetures-multi.js" defer></script>
     <script src="/assets/fermetures-supprimer-lot.js" defer></script>
+    <script src="/assets/plage-historique.js" defer></script>
     </div><!-- /.reglage-card-corps -->
 </details>
 

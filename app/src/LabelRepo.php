@@ -8,6 +8,9 @@ final class LabelRepo
 {
     public const DEFAUT = '#90a4ae';
 
+    /** Borne des clauses IN(...) : marge sous SQLITE_MAX_VARIABLE_NUMBER (999). */
+    private const CHUNK_IN = 900;
+
     /** Normalise une valeur `couleur` en hex #rrggbb. Retour DEFAUT si invalide. */
     public static function normaliserHex(string $c): string
     {
@@ -220,5 +223,99 @@ final class LabelRepo
             ];
         }
         return $out;
+    }
+
+    /**
+     * Attache chaque label de la liste à chaque jour de la liste (produit
+     * cartésien). INSERT OR IGNORE : idempotent, ne duplique pas. INSERT
+     * ligne par ligne (pas de clause IN) → pas de limite de variables.
+     * N'ouvre PAS de transaction : travaille dans celle de l'appelant.
+     *
+     * @param int[] $jourIds
+     * @param int[] $labelIds
+     * @return int nombre d'associations réellement ajoutées
+     */
+    public static function ajouterAuxJours(PDO $pdo, array $jourIds, array $labelIds): int
+    {
+        if (empty($jourIds) || empty($labelIds)) {
+            return 0;
+        }
+        $ins = $pdo->prepare(
+            'INSERT OR IGNORE INTO jour_label (jour_id, label_id) VALUES (?, ?)'
+        );
+        $ajoutees = 0;
+        foreach ($jourIds as $jid) {
+            foreach ($labelIds as $lid) {
+                $ins->execute([(int)$jid, (int)$lid]);
+                $ajoutees += $ins->rowCount();
+            }
+        }
+        return $ajoutees;
+    }
+
+    /**
+     * Retire les labels donnés de chaque jour de la liste. Les jourIds sont
+     * découpés en paquets pour rester sous la limite de variables SQLite.
+     * N'ouvre PAS de transaction.
+     *
+     * @param int[] $jourIds
+     * @param int[] $labelIds
+     * @return int nombre d'associations supprimées
+     */
+    public static function retirerDesJours(PDO $pdo, array $jourIds, array $labelIds): int
+    {
+        if (empty($jourIds) || empty($labelIds)) {
+            return 0;
+        }
+        $labelIds = array_map('intval', $labelIds);
+        $phLabels = implode(',', array_fill(0, count($labelIds), '?'));
+        // Chaque requête lie count($chunk) + count($labelIds) variables : on
+        // réserve la place des labels pour rester sous la limite SQLite.
+        $tailleChunk = max(1, self::CHUNK_IN - count($labelIds));
+        $supprimees = 0;
+        foreach (array_chunk($jourIds, $tailleChunk) as $chunk) {
+            $chunk = array_map('intval', $chunk);
+            $phJours = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $pdo->prepare(
+                "DELETE FROM jour_label
+                  WHERE jour_id IN ($phJours) AND label_id IN ($phLabels)"
+            );
+            $stmt->execute([...$chunk, ...$labelIds]);
+            $supprimees += $stmt->rowCount();
+        }
+        return $supprimees;
+    }
+
+    /**
+     * Pour une liste de jours, compte les jours distincts portant chaque
+     * label. Sert l'aperçu « étiquettes présentes dans la plage ». Les
+     * paquets sont disjoints (un jour_id n'apparaît qu'une fois), donc les
+     * COUNT(DISTINCT) par paquet s'additionnent sans double comptage.
+     *
+     * @param int[] $jourIds
+     * @return array<int,int> [label_id => nb de jours distincts]
+     */
+    public static function comptesParLabelDansJours(PDO $pdo, array $jourIds): array
+    {
+        if (empty($jourIds)) {
+            return [];
+        }
+        $comptes = [];
+        foreach (array_chunk($jourIds, self::CHUNK_IN) as $chunk) {
+            $chunk = array_map('intval', $chunk);
+            $ph = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $pdo->prepare(
+                "SELECT label_id, COUNT(DISTINCT jour_id) AS n
+                   FROM jour_label
+                  WHERE jour_id IN ($ph)
+                  GROUP BY label_id"
+            );
+            $stmt->execute($chunk);
+            foreach ($stmt->fetchAll() as $r) {
+                $id = (int)$r['label_id'];
+                $comptes[$id] = ($comptes[$id] ?? 0) + (int)$r['n'];
+            }
+        }
+        return $comptes;
     }
 }
