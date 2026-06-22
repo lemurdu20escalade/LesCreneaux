@@ -42,6 +42,7 @@ require $appDir . '/src/FermetureRepo.php';
 require $appDir . '/src/SettingsRepo.php';
 require $appDir . '/src/HtmlSanitizer.php';
 require $appDir . '/src/Surveillance.php';
+require $appDir . '/src/MiseAJour.php';
 require $appDir . '/src/RateLimit.php';
 require $appDir . '/src/AdminAuth.php';
 
@@ -481,6 +482,9 @@ $router->get('/reglages', function () use ($appDir): void {
     require $appDir . '/views/reglages.php';
     $contenu = ob_get_clean();
     require $appDir . '/views/layout.php';
+
+    // Après le rendu : flush puis interroge GitHub si le cache a > 24 h.
+    MiseAJour::rafraichirSiNecessaire();
 });
 
 $router->post('/modele/ajouter', function (): void {
