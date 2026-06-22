@@ -84,6 +84,7 @@ final class MiseAJour
         return !defined('MAJ_CHECK') || (bool)constant('MAJ_CHECK');
     }
 
+    /** @param array<string, mixed> $etat */
     private static function interroger(array $etat): void
     {
         $reponse = self::fetch((string)($etat['etag'] ?? ''));
@@ -101,6 +102,7 @@ final class MiseAJour
      * portant un tag semver valide ; l'ETag est mémorisé dès qu'il est présent,
      * même si le tag est ignoré, pour permettre un 304 au check suivant.
      *
+     * @param  array<string, mixed> $etat
      * @return array<string, mixed>
      */
     public static function appliquerReponse(array $etat, int $code, string $corps, string $etag): array
@@ -188,6 +190,7 @@ final class MiseAJour
         return 'https://github.com/' . self::DEPOT . '/releases';
     }
 
+    /** @return array<string, mixed> */
     private static function chargerEtat(): array
     {
         $path = self::statePath();
@@ -202,6 +205,7 @@ final class MiseAJour
         return is_array($d) ? $d : [];
     }
 
+    /** @param array<string, mixed> $etat */
     private static function sauverEtat(array $etat): void
     {
         $path = self::statePath();
