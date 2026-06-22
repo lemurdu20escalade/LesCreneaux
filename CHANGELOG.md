@@ -5,6 +5,11 @@ Ce projet suit [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Ajouté
+- Notification de mise à jour : bandeau sur `/reglages` quand une release
+  GitHub plus récente existe (vérification passive, cache 24 h, fail-open,
+  désactivable via `MAJ_CHECK`). Aucune écriture sur le code.
+
 ## [0.1.0] — 2026-04-23
 
 Première publication open source.

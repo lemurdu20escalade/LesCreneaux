@@ -64,6 +64,7 @@ En dev avec `php -S`, le `_router.php` (ou `index.php` quand `PHP_SAPI === 'cli-
 - `app/src/AdminAuth.php` — auth optionnelle. Si `ADMIN_PASSWORD_HASH` est défini dans `config.php`, les routes admin exigent `exigerConnexion()`. Sinon **tout est ouvert** (mode "asso de confiance" : un bandeau rouge sur `/reglages` avertit). Cookie signé inclut une empreinte du hash → changer le hash invalide toutes les sessions.
 - `app/src/MoisGenerator.php` — `genererSiVide($pdo, 'YYYY-MM')` crée les jours du mois depuis les `modeles` actifs s'ils n'existent pas. Idempotent.
 - `app/src/Surveillance.php` — alerte Discord optionnelle (`DISCORD_WEBHOOK_URL`) sur changements de réglages. POST différé après `flush()` du client.
+- `app/src/MiseAJour.php` — notification de mise à jour. `banniere()` lit le cache `data/maj-state.json` et compare à `Version::APP` (pur, sans réseau) ; `rafraichirSiNecessaire()` interroge l'API GitHub `releases/latest` au plus 1×/24 h, en différé après le rendu de `/reglages`. Fail-open, désactivable via `MAJ_CHECK`, no-op sous `php -S` (`cli-server`).
 - `app/src/HtmlSanitizer.php` — DOMDocument + whitelist de tags pour le bandeau HTML libre.
 - `app/views/*.php` — templates PHP simples avec `ob_start()` → `$contenu` → `require layout.php`. Pas de moteur de templates. Variables passées par fermeture, échapper avec `e()` (helper global).
 
