@@ -91,6 +91,8 @@ require_once __DIR__ . '/scenarios/04-csrf-expiration.php';
 require_once __DIR__ . '/scenarios/05-admin-auth.php';
 require_once __DIR__ . '/scenarios/06-sans-referent.php';
 require_once __DIR__ . '/scenarios/07-note-multiligne.php';
+require_once __DIR__ . '/scenarios/09-mise-a-jour.php';
+require_once __DIR__ . '/scenarios/10-mise-a-jour-unit.php';
 
 runRoutesPubliques();
 runInscriptions();
@@ -99,6 +101,8 @@ runCsrfExpiration();
 runAdminAuth();
 runSansReferent();
 runNoteMultiligne();
+runMiseAJour();
+runMiseAJourUnit();
 
 // ---------------------------------------------------------------------------
 // Récap final
