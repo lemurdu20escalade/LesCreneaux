@@ -27,6 +27,14 @@ const SSE_ENABLED = false;
 // Vide = désactivé. Créer via Paramètres du salon → Intégrations → Webhooks.
 const DISCORD_WEBHOOK_URL = '';
 
+// Notification de mise à jour : au chargement de /reglages, l'app interroge
+// (au plus une fois par 24 h) l'API publique GitHub pour savoir si une release
+// plus récente existe, et affiche un bandeau le cas échéant. Aucune écriture
+// sur le code, fail-open (GitHub injoignable = pas de bandeau). Le seul appel
+// sortant est un GET vers api.github.com avec un User-Agent générique.
+// Mettre false pour le désactiver complètement.
+const MAJ_CHECK = true;
+
 // Mot de passe admin (hash) pour protéger les routes de configuration :
 // /reglages, modification/suppression de créneau, gestion des modèles,
 // étiquettes, fermetures, bandeau d'accueil, identité de l'asso.

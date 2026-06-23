@@ -92,6 +92,8 @@ require_once __DIR__ . '/scenarios/05-admin-auth.php';
 require_once __DIR__ . '/scenarios/06-sans-referent.php';
 require_once __DIR__ . '/scenarios/07-note-multiligne.php';
 require_once __DIR__ . '/scenarios/08-inscription-bloquee.php';
+require_once __DIR__ . '/scenarios/09-mise-a-jour.php';
+require_once __DIR__ . '/scenarios/10-mise-a-jour-unit.php';
 
 runRoutesPubliques();
 runInscriptions();
@@ -101,6 +103,8 @@ runAdminAuth();
 runSansReferent();
 runNoteMultiligne();
 runInscriptionBloquee();
+runMiseAJour();
+runMiseAJourUnit();
 
 // ---------------------------------------------------------------------------
 // Récap final

@@ -49,13 +49,15 @@ $logoUrl = setting(SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
             </div>
         <?php endif; ?>
         <?php
+        // Match exact du path (le routeur fait pareil) : un str_starts_with
+        // laxiste afficherait les bandeaux sur les 404 type /reglages-xyz, qui
+        // sont rendues SANS auth par erreur() — fuite de version à un anonyme.
+        $reqPath = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/';
         // Bandeau si l'auth admin n'est pas configurée, affiché uniquement
         // sur les pages admin (/reglages, /admin/login). On évite la page
         // publique pour ne pas signaler la vulnérabilité aux visiteurs.
-        $reqUri = (string)($_SERVER['REQUEST_URI'] ?? '');
         if (!AdminAuth::estActive()
-            && (str_starts_with($reqUri, '/reglages')
-                || str_starts_with($reqUri, '/admin/login'))): ?>
+            && ($reqPath === '/reglages' || $reqPath === '/admin/login')): ?>
             <div class="flash flash--error" role="alert">
                 <strong>Aucun mot de passe admin n'est configuré.</strong>
                 Toute personne qui visite ces pages peut modifier ou
@@ -63,6 +65,17 @@ $logoUrl = setting(SettingsRepo::CLE_ASSO_LOGO_URL, ASSO_LOGO_URL_DEFAUT);
                 réglages. Renseigne <code>ADMIN_PASSWORD_HASH</code> dans
                 <code>app/config.php</code> pour activer la protection
                 (cf. EXPLOITATION.md §2).
+            </div>
+        <?php endif; ?>
+        <?php
+        // Notification de mise à jour, uniquement sur /reglages (page admin).
+        $maj = $reqPath === '/reglages' ? MiseAJour::banniere() : null;
+        if ($maj !== null): ?>
+            <div class="flash flash--info" role="status">
+                <strong>Version <?= e($maj['version']) ?> disponible.</strong>
+                Tu utilises la <?= e(Version::APP) ?>. Mets à jour le code
+                (<code>git pull</code>, cf. EXPLOITATION.md §6) puis recharge.
+                <a href="<?= e($maj['url']) ?>" target="_blank" rel="noopener">Voir les nouveautés</a>.
             </div>
         <?php endif; ?>
         <?= $contenu ?? '' ?>

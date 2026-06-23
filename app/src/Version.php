@@ -9,6 +9,11 @@ declare(strict_types=1);
 
 final class Version
 {
+    // Version applicative publiée (semver). À bumper avec le CHANGELOG à
+    // chaque release. Comparée à la dernière release GitHub par MiseAJour
+    // pour afficher la notification de mise à jour.
+    public const APP = '0.1.0';
+
     public static function signature(PDO $pdo): string
     {
         $row = $pdo->query(
