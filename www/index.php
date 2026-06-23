@@ -312,6 +312,13 @@ $router->post('/jour/{id}/inscrire', function (array $params): void {
     if (!InscriptionRepo::jourExiste($pdo, $jourId)) {
         erreur(404, 'Créneau introuvable.'); return;
     }
+    // Le masquage du formulaire côté UI ne suffit pas : un POST direct
+    // (onglet gardé, requête forgée) contournerait un créneau « Salle
+    // fermée ». On revérifie le blocage à la frontière serveur.
+    $labelsJour = LabelRepo::labelsParJour($pdo, [$jourId])[$jourId] ?? [];
+    if (jourBloque(['labels' => $labelsJour])) {
+        erreur(403, 'Les inscriptions sont fermées sur ce créneau.'); return;
+    }
     $nom = trim((string)($_POST['nom'] ?? ''));
     if ($nom === '' || mb_strlen($nom) > 40) {
         erreur(400, 'Prénom invalide (1 à 40 caractères).'); return;
