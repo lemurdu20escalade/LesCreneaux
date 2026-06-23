@@ -47,4 +47,36 @@ final class JourRepo
         $date = $stmt->fetchColumn();
         return $date === false ? null : substr((string)$date, 0, 7);
     }
+
+    /**
+     * Ids des créneaux dont la date tombe dans [debut..fin] (bornes incluses),
+     * filtrés par jours de semaine ISO (1=lundi … 7=dimanche). Liste vide =
+     * AUCUN jour (zéro créneau) — pas « tous » : décocher toutes les cases du
+     * formulaire ne doit pas appliquer à tout par surprise. Le filtre se fait
+     * en PHP : la plage est bornée côté appelant (≤ 366 j), volume petit.
+     *
+     * @param int[] $joursSemaine
+     * @return int[]
+     */
+    public static function idsDansPlage(
+        PDO $pdo, string $debut, string $fin, array $joursSemaine
+    ): array {
+        if ($joursSemaine === []) {
+            return [];
+        }
+        $stmt = $pdo->prepare(
+            'SELECT id, date FROM jours WHERE date BETWEEN ? AND ? ORDER BY date'
+        );
+        $stmt->execute([$debut, $fin]);
+
+        $filtre = array_flip($joursSemaine);
+        $ids = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $jsem = (int)(new DateTimeImmutable((string)$r['date']))->format('N');
+            if (isset($filtre[$jsem])) {
+                $ids[] = (int)$r['id'];
+            }
+        }
+        return $ids;
+    }
 }

@@ -88,6 +88,22 @@ CREATE TABLE IF NOT EXISTS settings (
   valeur TEXT
 );
 
+-- Historique des applications « Étiquettes par plage » : permet de retrouver
+-- ce qu'on a posé/retiré sur quelle période et de corriger après coup.
+-- jours_semaine / labels_* stockés en CSV (affichage + pré-remplissage, pas
+-- de requête dessus). Pas de FK sur les labels : on garde la trace même si
+-- un label est supprimé ensuite.
+CREATE TABLE IF NOT EXISTS plage_operations (
+  id             INTEGER PRIMARY KEY,
+  debut          TEXT    NOT NULL,            -- 'YYYY-MM-DD'
+  fin            TEXT    NOT NULL,
+  jours_semaine  TEXT    NOT NULL DEFAULT '', -- CSV ISO 1..7
+  labels_ajoutes TEXT    NOT NULL DEFAULT '', -- CSV d'ids de labels
+  labels_retires TEXT    NOT NULL DEFAULT '',
+  nb_creneaux    INTEGER NOT NULL DEFAULT 0,
+  cree_le        TEXT    NOT NULL             -- 'YYYY-MM-DD HH:MM'
+);
+
 -- Labels par défaut fournis avec l'app (renommables/supprimables ensuite).
 INSERT OR IGNORE INTO labels (nom, couleur, bloque_inscriptions, ouvre_voisines) VALUES
   ('CAF',             '#ff8f00', 0, 0),

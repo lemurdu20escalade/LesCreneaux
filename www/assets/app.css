@@ -565,16 +565,37 @@ main.container {
     font-size: 11px;
 }
 
-/* Année en en-tête de groupe de fermetures */
-.fermeture-annee {
+/* Groupe de fermetures par année : accordéon natif <details> */
+.fermeture-annee-groupe { margin-top: var(--sp-3); }
+.fermeture-annee-groupe:first-of-type { margin-top: var(--sp-2); }
+
+/* En-tête d'année = summary cliquable. Override de la règle générique
+   details > summary (qui en ferait un pill primary). */
+.fermeture-annee-groupe > summary.fermeture-annee {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) 0;
+    margin-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--outline-soft);
+    border-radius: 0;
+    color: var(--on-surface-soft);
     font-size: 14px;
     font-weight: 600;
-    color: var(--on-surface-soft);
-    margin: var(--sp-3) 0 var(--sp-2);
-    padding-bottom: var(--sp-1);
-    border-bottom: 1px solid var(--outline-soft);
 }
-.fermeture-annee:first-child { margin-top: 0; }
+.fermeture-annee-groupe > summary.fermeture-annee:hover {
+    background: transparent;
+    color: var(--on-surface);
+}
+.fermeture-annee-titre { flex: 1; }
+.fermeture-annee-chevron {
+    display: inline-flex;
+    align-items: center;
+    transition: transform 180ms ease;
+}
+.fermeture-annee-groupe[open] > summary .fermeture-annee-chevron {
+    transform: rotate(180deg);
+}
 
 /* Boutons d'action au-dessus de la preview ICS */
 .ics-actions {
@@ -1629,5 +1650,51 @@ input[name="website"] {
     opacity: 0 !important;
 }
 .meta { color: var(--on-surface-soft); font-size: 13px; }
+
+/* ---------- Étiquettes par plage (carte #plage) ---------- */
+.check input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    margin: 0;
+}
+.plage-jours {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+}
+.plage-jours .check { margin: 0; }
+.plage-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2) var(--sp-3);
+}
+.plage-action-choix {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+}
+.plage-apercu-zone { margin: var(--sp-1) 0; }
+#plage-apercu:not(:empty) { margin-top: var(--sp-2); }
+.plage-historique .plage-op {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-2) var(--sp-3);
+}
+.plage-op-tete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+}
+.plage-op-reprendre {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+.plage-op-chip-retire { text-decoration: line-through; opacity: 0.75; }
 
 /* Masque Pico si encore chargé */

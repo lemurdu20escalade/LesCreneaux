@@ -2,6 +2,11 @@
 /data/
 /app/config.php
 
+# sauvegardes de la prod rapatriées en FTP (bases SQLite avec données perso
+# d'adhérent·es) — ne JAMAIS versionner sur le dépôt public
+/Backup/
+/backup/
+
 # dépendances (si Composer ajouté un jour)
 /vendor/
 
@@ -42,6 +47,11 @@ coverage/
 /topublic*
 /TODO.local*
 /notes.local*
+
+# seeds propres à une instance (planning réel d'une asso), pas pour le repo
+# public — suffixe .local.php. Les seeds de démo/référence (seed-modeles,
+# seed-avril) restent versionnés.
+/scripts/*.local.php
 
 # artefacts du pipeline /dev (planning local, pas pour le repo)
 /PHASES.md

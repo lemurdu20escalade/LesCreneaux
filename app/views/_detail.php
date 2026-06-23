@@ -43,7 +43,7 @@ $hxSwap   = $inDrawer
             <?php endforeach; ?>
         </p>
         <?php if (!empty($jour['note'])): ?>
-            <p class="detail-note"><?= e($jour['note']) ?></p>
+            <p class="detail-note"><?= lienAuto($jour['note']) ?></p>
         <?php endif; ?>
     </header>
 

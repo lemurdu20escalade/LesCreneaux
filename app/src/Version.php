@@ -25,7 +25,9 @@ final class Version
                COALESCE((SELECT MAX(rowid) FROM referentes), 0)   AS rmax,
                (SELECT COUNT(*) FROM referentes)                   AS rcount,
                COALESCE((SELECT MAX(rowid) FROM modeles), 0)      AS mmax,
-               (SELECT COUNT(*) FROM modeles)                      AS mcount'
+               (SELECT COUNT(*) FROM modeles)                      AS mcount,
+               COALESCE((SELECT MAX(rowid) FROM jour_label), 0)   AS jlmax,
+               (SELECT COUNT(*) FROM jour_label)                   AS jlcount'
         )->fetch(PDO::FETCH_NUM);
 
         return md5(implode('-', array_map('strval', $row ?: [])));
